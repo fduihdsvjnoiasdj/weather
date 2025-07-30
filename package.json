@@ -2,7 +2,12 @@
   "name": "weather-app",
   "version": "1.0.0",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "web-push": "^3.4.5"
   },
   "devDependencies": {
     "jest": "^29.7.0"

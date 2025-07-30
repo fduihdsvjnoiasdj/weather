@@ -34,13 +34,15 @@ http://localhost:8000/weather-pwa/
 
 Po načtení stránky aplikace nabídne instalaci na domovskou obrazovku a požádá o povolení notifikací. Pokud aplikaci přidáte na plochu (Android/iOS) či spustíte jako samostatnou aplikaci v prohlížeči, bude nadále fungovat i bez připojení k internetu (pouze s uloženými daty).
 
-## Nasazení na hosting
+## Spuštění serveru
 
-Projekt je čistý statický web bez serverové logiky, takže ho lze snadno nasadit na služby jako **Netlify**, **Vercel**, **GitHub Pages** nebo vlastní statický server:
+Push notifikace nyní obstarává jednoduchý Node.js server. Po instalaci závislostí spusťte:
 
-1. Nahrajte obsah složky `weather-pwa/` na zvolený hosting.
-2. Ujistěte se, že je stránka poskytována přes HTTPS (notifikace a PWA vyžadují zabezpečené spojení).
-3. V případě Netlify nebo Vercel stačí v nastavení zvolit tuto složku jako adresář s publikovaným obsahem – není potřeba žádná další konfigurace.
+```bash
+npm start
+```
+
+Server poslouchá na portu `3000` a zároveň obsluhuje statické soubory aplikace. Pro funkční web push mějte aplikaci dostupnou přes HTTPS.
 
 ## Přidání a správa měst
 
