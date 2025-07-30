@@ -4,15 +4,15 @@
  */
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
   margin: 0;
   padding: 0;
-  background: #f0f4f8;
+  background: linear-gradient(#e0f7fa, #ffffff);
   color: #333;
 }
 
 header {
-  background: #2196f3;
+  background: rgba(33, 150, 243, 0.8);
   color: white;
   padding: 1rem;
   text-align: center;
@@ -47,7 +47,7 @@ header h1 {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid #ccc;
   width: 90%;
   max-width: 400px;
@@ -81,7 +81,7 @@ main {
 }
 
 .location-card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.8);
   margin: 1rem 0;
   padding: 1rem;
   border-radius: 8px;
@@ -117,7 +117,7 @@ main {
 }
 
 .forecast-day {
-  background: #e3f2fd;
+  background: rgba(227, 242, 253, 0.8);
   padding: 0.5rem;
   border-radius: 6px;
   text-align: center;
@@ -130,8 +130,15 @@ main {
   display: block;
 }
 
+.segment {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
 .settings {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.8);
   padding: 1rem;
   margin: 1rem auto;
   border-radius: 8px;
