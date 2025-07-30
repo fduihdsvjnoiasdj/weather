@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Předpověď počasí</title>
+    <!-- Manifest pro instalaci aplikace -->
+    <link rel="manifest" href="manifest.json" />
+    <!-- Ikony pro různé platformy -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-512.png" />
+    <!-- Hlavní styl -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Předpověď počasí</h1>
+      <div class="search-container">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Hledat město..."
+          autocomplete="off"
+        />
+        <div id="search-results" class="search-results"></div>
+      </div>
+    </header>
+    <main id="locations-container"></main>
+    <section class="settings">
+      <h2>Nastavení notifikací</h2>
+      <label for="notification-time">Čas upozornění:</label>
+      <input id="notification-time" type="time" value="07:00" />
+      <button id="save-settings">Uložit nastavení</button>
+      <p class="note">
+        Upozornění na&nbsp;koupací den (🏖️) a&nbsp;déšť (🌧️) budou odeslány každý den
+        v&nbsp;nastavený čas.
+      </p>
+    </section>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "Předpověď počasí",
+  "short_name": "Počasí",
+  "description": "Česká PWA aplikace pro předpověď počasí s možností instalace a offline režimu.",
+  "lang": "cs",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f0f4f8",
+  "theme_color": "#2196f3",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
