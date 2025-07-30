@@ -57,6 +57,9 @@ async function initApp() {
 
   // Naplánovat pravidelnou kontrolu pro zasílání notifikací
   scheduleDailyNotifications();
+
+  // Ihned po spuštění se pokusíme vyžádat povolení pro notifikace
+  requestNotificationPermission();
 }
 
 /**
@@ -571,6 +574,13 @@ function showNotification(title, options) {
     navigator.serviceWorker.controller.postMessage({ type: 'notify', title, options });
   } else if ('Notification' in window) {
     new Notification(title, options);
+  }
+}
+
+// Požádá uživatele o povolení notifikací, pokud ještě nebylo uděleno
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
   }
 }
 if (typeof module !== "undefined") {
