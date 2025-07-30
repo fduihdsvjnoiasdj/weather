@@ -375,19 +375,83 @@ function getWeatherIcon(code) {
   return '☁️'; // výchozí
 }
 
+// Pokusí se naplánovat notifikaci pomocí Notification Triggers.
+// Vrátí true, pokud bylo naplánování úspěšné.
+async function scheduleNotificationTrigger(timeStr) {
+  if (!('showTrigger' in Notification.prototype)) {
+    return false;
+  }
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+  if (Notification.permission !== 'granted') {
+    return false;
+  }
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    return false;
+  }
+
+  const [h, m] = timeStr.split(':').map((v) => parseInt(v, 10));
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+  if (target <= now) {
+    target.setDate(target.getDate() + 1);
+  }
+
+  const messages = [];
+  for (const loc of locations) {
+    try {
+      const daily = await fetchWeather(loc);
+      if (daily && daily.length > 0) {
+        const today = daily[0];
+        if (today.tempMax >= 25 && today.precipitation < 1) {
+          messages.push(`🏖️ ${loc.name}: max ${Math.round(today.tempMax)} °C`);
+        } else if (today.precipitation >= 1 || today.precipProb > 50) {
+          messages.push(`🌧️ ${loc.name}: ${today.precipitation.toFixed(1)} mm`);
+        }
+      }
+    } catch (err) {
+      console.error('Chyba při plánování notifikace:', err);
+    }
+  }
+
+  if (messages.length === 0) {
+    return false;
+  }
+
+  const body = messages.join('\n');
+  registration.showNotification('Předpověď na dnes', {
+    body,
+    badge: 'icons/icon-192.png',
+    icon: 'icons/icon-192.png',
+    showTrigger: new TimestampTrigger(target.getTime()),
+    tag: 'daily-weather'
+  });
+  return true;
+}
+
 /**
  * Naplánuje periodickou kontrolu pro odesílání denních notifikací. Každou
  * minutu zkontroluje, zda nastal nastavený čas. Pokud ano, zavolá funkci
  * checkForNotification() pro všechny uložené lokace.
  */
-function scheduleDailyNotifications() {
+async function scheduleDailyNotifications() {
   // Zrušit případný existující interval
   if (notificationIntervalId) {
     clearInterval(notificationIntervalId);
   }
+
   const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
   const targetTime = settings.notificationTime || '07:00';
 
+  // Pokus o naplánování pomocí Notification Triggers (Chrome/Android)
+  const triggerScheduled = await scheduleNotificationTrigger(targetTime);
+  if (triggerScheduled) {
+    return;
+  }
+
+  // Fallback pomocí běžného intervalu – funguje pouze při otevřené aplikaci
   notificationIntervalId = setInterval(async () => {
     const now = new Date();
     const [h, m] = targetTime.split(':').map((v) => parseInt(v, 10));

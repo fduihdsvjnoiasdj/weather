@@ -51,8 +51,9 @@ Projekt je čistý statický web bez serverové logiky, takže ho lze snadno nas
 ## Nastavení notifikací
 
 - V sekci **Nastavení notifikací** zvolte preferovaný čas (formát 24 h) a klikněte na *Uložit nastavení*.
-- Aplikace každých 30 sekund kontroluje aktuální čas. Pokud se shoduje s nastaveným časem, pro každé uložené město vyhodnotí předpověď a zašle notifikaci. Za **koupací den** je považován den se slunečným počasím a maximální teplotou ≥ 25 °C bez výrazných srážek; za **deštivý den** se považuje den se srážkami ≥ 1 mm nebo pravděpodobností srážek nad 50 %.
-- Notifikace jsou zobrazeny pouze tehdy, pokud jste je v prohlížeči povolili. V některých prohlížečích (např. iOS Safari) mohou být notifikace omezené.
+- Aplikace se pokusí naplánovat notifikaci pomocí rozšíření **Notification Triggers** (dostupné především v prohlížeči Chrome na Androidu). Pokud toto rozšíření není k dispozici, provádí se kontrola každých 30&nbsp;sekund pouze při otevřené aplikaci.
+- Za **koupací den** je považován den se slunečným počasím a maximální teplotou ≥ 25 °C bez výrazných srážek; za **deštivý den** se považuje den se srážkami ≥ 1 mm nebo pravděpodobností srážek nad 50 %.
+- Notifikace jsou zobrazeny pouze tehdy, pokud jste je v prohlížeči povolili. V některých prohlížečích (zejména iOS Safari) nejsou notifikace na pozadí podporovány.
 
 ## Úprava kódu a přizpůsobení
 
