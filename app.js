@@ -453,3 +453,6 @@ function showNotification(title, options) {
     new Notification(title, options);
   }
 }
+if (typeof module !== "undefined") {
+  module.exports = { getWeatherIcon };
+}
