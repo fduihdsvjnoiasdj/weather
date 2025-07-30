@@ -1,5 +1,8 @@
 const express = require('express');
 const webpush = require('web-push');
+// `node-fetch` polyfills the global fetch API for older Node versions
+const fetch = (...args) =>
+  import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const VAPID_PUBLIC_KEY = 'BJzsAIEa1fs0XMTL38zYoEl6pWhFQ-SFldAfHpY5yYf4LXiHk1T2XQrhvHfceCJZOOWHlfqtu7Kww4K64-EyFlI';
 const VAPID_PRIVATE_KEY = '0HnL7LqAlC_2_QB-ESpiIec-D4mbysEMd36cu5fovp8';
