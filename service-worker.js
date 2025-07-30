@@ -68,6 +68,19 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Přijetí push zprávy ze serveru
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'Nová notifikace';
+  const options = {
+    body: data.body,
+    icon: data.icon || 'icons/icon-192.png',
+    badge: data.badge || 'icons/icon-192.png',
+    data: data.url || '/'
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
 // Ošetření kliknutí na notifikaci – otevřít nebo zaměřit aplikaci
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

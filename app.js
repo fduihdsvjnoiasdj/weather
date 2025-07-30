@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
+// VAPID veřejný klíč pro Web Push (ukázková hodnota)
+const VAPID_PUBLIC_KEY =
+  'BOPuW1a2ExamplePublicKey1234567890abcdefghijklmnopqrstuv';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; ++i) {
+    output[i] = raw.charCodeAt(i);
+  }
+  return output;
+}
+
 // Registrace service workeru pro PWA funkce
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
@@ -58,8 +73,9 @@ async function initApp() {
   // Naplánovat pravidelnou kontrolu pro zasílání notifikací
   scheduleDailyNotifications();
 
-  // Ihned po spuštění se pokusíme vyžádat povolení pro notifikace
-  requestNotificationPermission();
+  document
+    .getElementById('enable-notifications')
+    .addEventListener('click', handleEnableNotifications);
 }
 
 /**
@@ -574,6 +590,44 @@ function showNotification(title, options) {
     navigator.serviceWorker.controller.postMessage({ type: 'notify', title, options });
   } else if ('Notification' in window) {
     new Notification(title, options);
+  }
+}
+
+async function handleEnableNotifications() {
+  if (!('Notification' in window)) {
+    alert('Tento prohlížeč nepodporuje notifikace.');
+    return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    alert('Notifikace nejsou povoleny.');
+    return;
+  }
+  try {
+    await subscribeForPush();
+    alert('Notifikace byly povoleny.');
+  } catch (err) {
+    console.error('Nepodařilo se zaregistrovat push:', err);
+  }
+}
+
+async function subscribeForPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub)
+    });
+  } catch (err) {
+    console.error('Chyba při vytváření push subscription:', err);
   }
 }
 
