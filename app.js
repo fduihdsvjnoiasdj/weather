@@ -209,8 +209,8 @@ async function updateAllLocations() {
   for (const loc of locations) {
     // Pokud má město souřadnice, načti předpověď
     if (loc.latitude && loc.longitude) {
-      const dailyForecast = await fetchWeather(loc);
-      const card = createLocationCard(loc, dailyForecast);
+      const weather = await fetchWeather(loc);
+      const card = createLocationCard(loc, weather);
       container.appendChild(card);
     }
   }
@@ -273,7 +273,6 @@ async function fetchWeather(loc) {
         const info = daily[dateStr];
         const tempMax = Math.max(...info.temps);
         const tempMin = Math.min(...info.temps);
-        // Zvolit nejčastější kód počasí pro daný den
         const codeCounts = {};
         info.codes.forEach((c) => {
           codeCounts[c] = (codeCounts[c] || 0) + 1;
@@ -290,17 +289,46 @@ async function fetchWeather(loc) {
           weatherCode
         };
       });
-    return dailyArray;
+
+    // Podrobné úseky pro první dva dny
+    const segments = {};
+    const limit = Math.min(time.length, 48); // pouze 48 hodin
+    for (let i = 0; i < limit; i++) {
+      const d = new Date(time[i]);
+      const h = d.getHours();
+      const dateStr = d.toISOString().split('T')[0];
+      if (!segments[dateStr]) {
+        segments[dateStr] = {
+          night: { precip: 0, swim: 0 },
+          morning: { precip: 0, swim: 0 },
+          day: { precip: 0, swim: 0 }
+        };
+      }
+      let part;
+      if (h < 6 || h >= 22) part = 'night';
+      else if (h < 12) part = 'morning';
+      else part = 'day';
+      segments[dateStr][part].precip += precipitation[i] || 0;
+      if (temps[i] >= 25 && precipitation[i] < 1) {
+        segments[dateStr][part].swim += 1;
+      }
+    }
+    const segmentsArray = Object.keys(segments)
+      .sort()
+      .slice(0, 2)
+      .map((dateStr) => ({ date: dateStr, ...segments[dateStr] }));
+
+    return { daily: dailyArray, segments: segmentsArray };
   } catch (error) {
     console.error('Chyba při načítání předpovědi:', error);
-    return [];
+    return { daily: [], segments: [] };
   }
 }
 
 /**
  * Vytvoří DOM kartu pro město a jeho předpověď.
  */
-function createLocationCard(loc, dailyForecast) {
+function createLocationCard(loc, weather) {
   const card = document.createElement('div');
   card.className = 'location-card';
   // Hlavička s názvem města a tlačítkem pro odstranění
@@ -325,7 +353,14 @@ function createLocationCard(loc, dailyForecast) {
   // Tělo předpovědi
   const grid = document.createElement('div');
   grid.className = 'forecast-grid';
-  dailyForecast.forEach((day) => {
+
+  const dailyForecast = weather.daily;
+  const segments = {};
+  weather.segments.forEach((s) => {
+    segments[s.date] = s;
+  });
+
+  dailyForecast.forEach((day, idx) => {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'forecast-day';
     const iconSpan = document.createElement('span');
@@ -342,15 +377,33 @@ function createLocationCard(loc, dailyForecast) {
     const tempP = document.createElement('div');
     tempP.textContent = `${Math.round(day.tempMax)}° / ${Math.round(day.tempMin)}°`;
     dayDiv.appendChild(tempP);
-    // Ikona koupání nebo deště
-    if (day.tempMax >= 25 && day.precipitation < 1) {
-      const swim = document.createElement('div');
-      swim.textContent = '🏖️';
-      dayDiv.appendChild(swim);
-    } else if (day.precipitation >= 1 || day.precipProb > 50) {
-      const rain = document.createElement('div');
-      rain.textContent = '🌧️';
-      dayDiv.appendChild(rain);
+    if (idx < 2 && segments[day.date]) {
+      ['night', 'morning', 'day'].forEach((part) => {
+        const seg = document.createElement('div');
+        seg.className = 'segment';
+        const info = segments[day.date][part];
+        let icon = '🙂';
+        let text = '—';
+        if (info.swim > 0) {
+          icon = '🏖️';
+          text = `${info.swim} h koupání`;
+        } else if (info.precip >= 1) {
+          icon = '🌧️😢';
+          text = `${info.precip.toFixed(1)} mm`;
+        }
+        seg.innerHTML = `<span>${part === 'night' ? 'Noc' : part === 'morning' ? 'Ráno' : 'Den'}</span> <span>${icon}</span> <span>${text}</span>`;
+        dayDiv.appendChild(seg);
+      });
+    } else {
+      if (day.tempMax >= 25 && day.precipitation < 1) {
+        const swim = document.createElement('div');
+        swim.textContent = '🏖️';
+        dayDiv.appendChild(swim);
+      } else if (day.precipitation >= 1 || day.precipProb > 50) {
+        const rain = document.createElement('div');
+        rain.textContent = '🌧️';
+        dayDiv.appendChild(rain);
+      }
     }
     grid.appendChild(dayDiv);
   });
@@ -402,13 +455,16 @@ async function scheduleNotificationTrigger(timeStr) {
   const messages = [];
   for (const loc of locations) {
     try {
-      const daily = await fetchWeather(loc);
+      const weather = await fetchWeather(loc);
+      const daily = weather.daily;
       if (daily && daily.length > 0) {
-        const today = daily[0];
-        if (today.tempMax >= 25 && today.precipitation < 1) {
-          messages.push(`🏖️ ${loc.name}: max ${Math.round(today.tempMax)} °C`);
-        } else if (today.precipitation >= 1 || today.precipProb > 50) {
-          messages.push(`🌧️ ${loc.name}: ${today.precipitation.toFixed(1)} mm`);
+        const firstTwo = daily.slice(0, 2);
+        const willRain = firstTwo.some((d) => d.precipitation >= 1 || d.precipProb > 50);
+        const willSwim = firstTwo.some((d) => d.tempMax >= 25 && d.precipitation < 1);
+        if (willRain) {
+          messages.push(`🌧️ ${loc.name}: během následujících 48 h může pršet`);
+        } else if (willSwim) {
+          messages.push(`🏖️ ${loc.name}: v příštích 48 h to vypadá na koupání!`);
         }
       }
     } catch (err) {
@@ -421,7 +477,7 @@ async function scheduleNotificationTrigger(timeStr) {
   }
 
   const body = messages.join('\n');
-  registration.showNotification('Předpověď na dnes', {
+  registration.showNotification('Předpověď na 48 hodin', {
     body,
     badge: 'icons/icon-192.png',
     icon: 'icons/icon-192.png',
@@ -481,24 +537,24 @@ async function checkForNotification() {
   }
   for (const loc of locations) {
     try {
-      // Načti denní předpověď pro nejbližší den
-      const daily = await fetchWeather(loc);
+      const weather = await fetchWeather(loc);
+      const daily = weather.daily;
       if (daily && daily.length > 0) {
-        const today = daily[0];
-        let title = '';
-        let body = '';
-        let icon = '';
-        if (today.tempMax >= 25 && today.precipitation < 1) {
-          title = `Koupací den v ${loc.name}!`;
-          body = `Očekává se slunečno a max ${Math.round(today.tempMax)} °C. Užijte si den!`;
-          icon = '🏖️';
-        } else if (today.precipitation >= 1 || today.precipProb > 50) {
-          title = `Bude pršet v ${loc.name}`;
-          body = `Očekávané srážky ${today.precipitation.toFixed(1)} mm. Nezapomeňte na deštník!`;
-          icon = '🌧️';
-        }
-        if (title) {
-          showNotification(title, { body: body, badge: 'icons/icon-192.png', icon: 'icons/icon-192.png' });
+        const firstTwo = daily.slice(0, 2);
+        const willRain = firstTwo.some((d) => d.precipitation >= 1 || d.precipProb > 50);
+        const willSwim = firstTwo.some((d) => d.tempMax >= 25 && d.precipitation < 1);
+        if (willRain) {
+          showNotification(`Deštníkový alarm pro ${loc.name}!`, {
+            body: 'Během příštích 48 hodin má sprchnout.',
+            badge: 'icons/icon-192.png',
+            icon: 'icons/icon-192.png'
+          });
+        } else if (willSwim) {
+          showNotification(`Hurá k vodě do ${loc.name}!`, {
+            body: 'V následujících 48 hodinách bude koupací počasí.',
+            badge: 'icons/icon-192.png',
+            icon: 'icons/icon-192.png'
+          });
         }
       }
     } catch (err) {
