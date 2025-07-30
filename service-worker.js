@@ -67,3 +67,18 @@ self.addEventListener('message', (event) => {
     self.registration.showNotification(title, options);
   }
 });
+
+// Ošetření kliknutí na notifikaci – otevřít nebo zaměřit aplikaci
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes('index.html') || client.url === '/' ) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow('/');
+    })
+  );
+});
