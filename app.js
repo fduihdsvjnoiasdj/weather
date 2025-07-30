@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
-// VAPID veřejný klíč pro Web Push (ukázková hodnota)
+// VAPID veřejný klíč pro Web Push
 const VAPID_PUBLIC_KEY =
-  'BOPuW1a2ExamplePublicKey1234567890abcdefghijklmnopqrstuv';
+  'BJzsAIEa1fs0XMTL38zYoEl6pWhFQ-SFldAfHpY5yYf4LXiHk1T2XQrhvHfceCJZOOWHlfqtu7Kww4K64-EyFlI';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -114,6 +114,15 @@ async function loadLocations() {
  */
 function saveLocations() {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
+  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription().then((sub) => {
+        if (sub) {
+          sendSubscriptionData(sub);
+        }
+      })
+    );
+  }
 }
 
 /**
@@ -143,6 +152,15 @@ function saveSettingsFromUI() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   // Přeplánovat notifikace
   scheduleDailyNotifications();
+  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription().then((sub) => {
+        if (sub) {
+          sendSubscriptionData(sub);
+        }
+      })
+    );
+  }
   alert('Nastavení uloženo.');
 }
 
@@ -621,13 +639,26 @@ async function subscribeForPush() {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
+    await sendSubscriptionData(sub);
+  } catch (err) {
+    console.error('Chyba při vytváření push subscription:', err);
+  }
+}
+
+async function sendSubscriptionData(sub) {
+  try {
+    const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     await fetch('/api/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sub)
+      body: JSON.stringify({
+        subscription: sub,
+        locations,
+        notificationTime: settings.notificationTime || '07:00'
+      })
     });
   } catch (err) {
-    console.error('Chyba při vytváření push subscription:', err);
+    console.error('Chyba při odesílání dat na server:', err);
   }
 }
 
