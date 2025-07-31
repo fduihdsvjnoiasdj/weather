@@ -401,6 +401,13 @@ function createLocationCard(loc, weather) {
   card.appendChild(chart);
   drawHourlyChart(chart, weather.hourly);
 
+  const legend = document.createElement('div');
+  legend.className = 'chart-legend';
+  legend.innerHTML =
+    '<div class="legend-item"><span class="legend-color sun"></span> Sluneční svit</div>' +
+    '<div class="legend-item"><span class="legend-color rain"></span> Srážky</div>';
+  card.appendChild(legend);
+
   // Tělo předpovědi
   const grid = document.createElement('div');
   grid.className = 'forecast-grid';
@@ -489,12 +496,16 @@ function drawHourlyChart(canvas, hourly) {
     ctx.fillText(label, i * stepX + stepX / 2 - 5, height - 5);
   }
 
-  // precipitation bars
-  ctx.fillStyle = 'rgba(33, 150, 243, 0.6)';
+  // precipitation line
+  ctx.strokeStyle = '#2196f3';
+  ctx.beginPath();
   for (let i = 0; i < count; i++) {
-    const hVal = (hourly.precipitation[i] / maxPrecip) * (height - 40);
-    ctx.fillRect(i * stepX + 1, height - 20 - hVal, stepX - 2, hVal);
+    const y = height - 20 - (hourly.precipitation[i] / maxPrecip) * (height - 40);
+    const x = i * stepX + stepX / 2;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
+  ctx.stroke();
 
   // sunshine line
   ctx.strokeStyle = '#ffd600';
