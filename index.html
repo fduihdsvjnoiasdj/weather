@@ -1,49 +1,34 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Předpověď počasí</title>
-    <!-- Manifest pro instalaci aplikace -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weather App</title>
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#0a84ff" />
-    <!-- Ikony pro různé platformy -->
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="icons/icon-512.png" />
-    <!-- Písmo -->
-    <link rel="preconnect" href="https://fonts.gstatic.com" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <!-- Hlavní styl -->
+    <meta name="theme-color" content="#FFFFFF" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header>
-      <h1>Předpověď počasí</h1>
-      <div class="search-container">
-        <input
-          id="search-input"
-          type="text"
-          placeholder="Hledat město..."
-          autocomplete="off"
-        />
-        <div id="search-results" class="search-results"></div>
-      </div>
-    </header>
-    <main id="locations-container"></main>
-    <section class="settings">
-      <h2>Nastavení notifikací</h2>
-      <label for="notification-time">Čas upozornění:</label>
-      <input id="notification-time" type="time" value="07:00" />
-      <button id="save-settings">Uložit nastavení</button>
-      <button id="subscribeBtn">Povolit notifikace</button>
-      <p class="note">
-        Upozornění na&nbsp;koupací den (🏖️) a&nbsp;déšť (🌧️) budou odeslány každý den
-        v&nbsp;nastavený čas.
-      </p>
-    </section>
-    <script src="app.js"></script>
+    <div class="app-container">
+      <header class="header">
+        <h1 class="location">{{location}}</h1>
+        <p class="condition">{{condition}}</p>
+      </header>
+
+      <section class="current-card">
+        <div class="icon">☀️</div>
+        <div class="temperature">{{currentTemp}}°</div>
+        <div class="high-low">
+          <span class="high">High – {{high}}°</span>
+          <span class="low">Low – {{low}}°</span>
+        </div>
+      </section>
+
+      <section class="hourly-forecast">
+        <h2 class="section-title">Hourly forecast</h2>
+        <ul class="hours-list" id="hours-list"></ul>
+      </section>
+    </div>
+    <script src="main.js"></script>
   </body>
 </html>
