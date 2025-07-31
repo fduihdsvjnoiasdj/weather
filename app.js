@@ -478,14 +478,28 @@ function drawHourlyChart(canvas, hourly) {
   if (count === 0) return;
   const maxPrecip = Math.max(...hourly.precipitation, 1);
   const maxSun = Math.max(...hourly.sunshine, 1);
-  const stepX = width / count;
 
-  // osa x
+  // necháme trochu místa na popisek srážek
+  const leftMargin = 30;
+  const stepX = (width - leftMargin) / count;
+
+  // osa x a y
   ctx.strokeStyle = '#888';
   ctx.beginPath();
-  ctx.moveTo(0, height - 20);
+  ctx.moveTo(leftMargin, height - 20);
   ctx.lineTo(width, height - 20);
+  ctx.moveTo(leftMargin, height - 20);
+  ctx.lineTo(leftMargin, 10);
   ctx.stroke();
+
+  // popisek jednotky srážek
+  ctx.save();
+  ctx.fillStyle = '#333';
+  ctx.font = '10px sans-serif';
+  ctx.translate(10, height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('mm', 0, 0);
+  ctx.restore();
 
   // labels hours every 6h
   ctx.fillStyle = '#333';
@@ -493,7 +507,7 @@ function drawHourlyChart(canvas, hourly) {
   for (let i = 0; i < count; i += 6) {
     const d = new Date(hourly.time[i]);
     const label = d.getHours().toString();
-    ctx.fillText(label, i * stepX + stepX / 2 - 5, height - 5);
+    ctx.fillText(label, leftMargin + i * stepX + stepX / 2 - 5, height - 5);
   }
 
   // precipitation line
@@ -501,7 +515,7 @@ function drawHourlyChart(canvas, hourly) {
   ctx.beginPath();
   for (let i = 0; i < count; i++) {
     const y = height - 20 - (hourly.precipitation[i] / maxPrecip) * (height - 40);
-    const x = i * stepX + stepX / 2;
+    const x = leftMargin + i * stepX + stepX / 2;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
@@ -512,7 +526,7 @@ function drawHourlyChart(canvas, hourly) {
   ctx.beginPath();
   for (let i = 0; i < count; i++) {
     const y = height - 20 - (hourly.sunshine[i] / maxSun) * (height - 40);
-    const x = i * stepX + stepX / 2;
+    const x = leftMargin + i * stepX + stepX / 2;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
