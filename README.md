@@ -15,7 +15,7 @@ Tento projekt je jednoduchá PWA aplikace v češtině, která využívá veřej
 | `index.html` | Hlavní webová stránka aplikace. |
 | `style.css` | Stylopis zajišťující responzivní a přehledné rozhraní. |
 | `app.js` | JavaScript s logikou aplikace – načítání dat, vyhledávání měst, ukládání do `localStorage` a plánování notifikací. |
-| `service-worker.js` | Service worker umožňující offline režim a zprostředkování notifikací. |
+| `sw.js` | Service worker umožňující offline režim a zprostředkování notifikací. |
 | `manifest.json` | Definuje parametry PWA (název, ikony, barvy, režim zobrazení). |
 | `icons/` | Obsahuje dvě ikony (`192×192` a `512×512`) generované jako abstraktní motiv. |
 | `README.md` | Tento návod. |
@@ -33,6 +33,8 @@ http://localhost:8000/weather-pwa/
 ```
 
 Po načtení stránky aplikace nabídne instalaci na domovskou obrazovku a požádá o povolení notifikací. Pokud aplikaci přidáte na plochu (Android/iOS) či spustíte jako samostatnou aplikaci v prohlížeči, bude nadále fungovat i bez připojení k internetu (pouze s uloženými daty).
+
+Od iOS 16.4 podporuje Safari standardní Web Push. Stačí aplikaci přidat na domovskou obrazovku, kliknout na tlačítko **Povolit notifikace** a po udělení oprávnění budou upozornění fungovat stejně jako u nativních aplikací.
 
 ## Spuštění serveru
 
@@ -55,7 +57,7 @@ Server poslouchá na portu `3000` a zároveň obsluhuje statické soubory aplika
 - V sekci **Nastavení notifikací** zvolte preferovaný čas (formát 24 h) a klikněte na *Uložit nastavení*.
 - Aplikace se pokusí naplánovat notifikaci pomocí rozšíření **Notification Triggers** (dostupné především v prohlížeči Chrome na Androidu). Pokud toto rozšíření není k dispozici, provádí se kontrola každých 30&nbsp;sekund pouze při otevřené aplikaci.
 - Za **koupací den** je považován den se slunečným počasím a maximální teplotou ≥ 25 °C bez výrazných srážek; za **deštivý den** se považuje den se srážkami ≥ 1 mm nebo pravděpodobností srážek nad 50 %.
-- Notifikace jsou zobrazeny pouze tehdy, pokud jste je v prohlížeči povolili. V některých prohlížečích (zejména iOS Safari) nejsou notifikace na pozadí podporovány.
+- Notifikace jsou zobrazeny pouze tehdy, pokud jste je v prohlížeči povolili. Od iOS 16.4 fungují i v Safari, pokud máte aplikaci přidanou na domovskou obrazovku.
 
 ## Úprava kódu a přizpůsobení
 
