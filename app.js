@@ -328,9 +328,9 @@ async function fetchWeather(loc) {
         };
       });
 
-    // Podrobné úseky pro první dva dny
+    // Podrobné úseky pro první čtyři dny
     const segments = {};
-    const limit = Math.min(time.length, 48); // pouze 48 hodin
+    const limit = Math.min(time.length, 96); // první 96 hodin
     for (let i = 0; i < limit; i++) {
       const d = new Date(time[i]);
       const h = d.getHours();
@@ -353,7 +353,7 @@ async function fetchWeather(loc) {
     }
     const segmentsArray = Object.keys(segments)
       .sort()
-      .slice(0, 2)
+      .slice(0, 4)
       .map((dateStr) => ({ date: dateStr, ...segments[dateStr] }));
 
     const hourly = {
@@ -393,6 +393,17 @@ function createLocationCard(loc, weather) {
   });
   header.appendChild(removeBtn);
   card.appendChild(header);
+
+  const label = document.createElement('div');
+  label.className = 'chart-label';
+  const first = weather.hourly.time[0];
+  if (first) {
+    const d = new Date(first);
+    label.textContent = `Dnes (${d.toLocaleDateString('cs-CZ')})`;
+  } else {
+    label.textContent = 'Dnes';
+  }
+  card.appendChild(label);
 
   const chart = document.createElement('canvas');
   chart.className = 'hourly-chart';
@@ -435,7 +446,7 @@ function createLocationCard(loc, weather) {
     const tempP = document.createElement('div');
     tempP.textContent = `${Math.round(day.tempMax)}° / ${Math.round(day.tempMin)}°`;
     dayDiv.appendChild(tempP);
-    if (idx < 2 && segments[day.date]) {
+    if (idx < 4 && segments[day.date]) {
       ['night', 'morning', 'day'].forEach((part) => {
         const seg = document.createElement('div');
         seg.className = 'segment';
