@@ -1,34 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Weather App</title>
+    <title>WeatherWatcher</title>
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="theme-color" content="#1E1E2A" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="app-container">
-      <header class="header">
-        <h1 class="location">{{location}}</h1>
-        <p class="condition">{{condition}}</p>
-      </header>
-
-      <section class="current-card">
-        <div class="icon">☀️</div>
-        <div class="temperature">{{currentTemp}}°</div>
-        <div class="high-low">
-          <span class="high">High – {{high}}°</span>
-          <span class="low">Low – {{low}}°</span>
-        </div>
+    <header class="app-header">
+      <h1>WeatherWatcher</h1>
+    </header>
+    <main>
+      <section class="search">
+        <input id="search-input" type="text" placeholder="Hledat město..." />
+        <div id="search-results" class="search-results"></div>
       </section>
-
-      <section class="hourly-forecast">
-        <h2 class="section-title">Hourly forecast</h2>
-        <ul class="hours-list" id="hours-list"></ul>
+      <section class="settings">
+        <label>Čas upozornění:
+          <input id="notification-time" type="time" value="07:00" />
+        </label>
+        <button id="save-settings">Uložit nastavení</button>
+        <button id="subscribeBtn">Povolit notifikace</button>
       </section>
-    </div>
-    <script src="main.js"></script>
+      <section id="locations-container" class="locations"></section>
+    </main>
+    <script src="app.js"></script>
   </body>
 </html>
