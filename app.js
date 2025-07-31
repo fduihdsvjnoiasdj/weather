@@ -263,7 +263,7 @@ async function fetchWeather(loc) {
   try {
     // Dotazy na jednotlivé modely. Pro první dva dny použijeme model ICON‑D2,
     // který poskytuje vysoké rozlišení, a pro další tři dny model ICON‑EU.
-    const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
+    const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode,shortwave_radiation&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
     const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&forecast_hours=72&model=icon_eu&timezone=Europe%2FPrague`;
     const [d2Resp, euResp] = await Promise.all([fetch(d2Url), fetch(euUrl)]);
     const d2Data = await d2Resp.json();
@@ -282,6 +282,7 @@ async function fetchWeather(loc) {
     const codes = (d2Data.hourly?.weathercode || []).concat(
       euData.hourly?.weathercode || []
     );
+    const shortwave = d2Data.hourly?.shortwave_radiation || [];
     // Vytvořit denní souhrny (5 dní)
     const daily = {};
     for (let i = 0; i < time.length; i++) {
@@ -355,10 +356,16 @@ async function fetchWeather(loc) {
       .slice(0, 2)
       .map((dateStr) => ({ date: dateStr, ...segments[dateStr] }));
 
-    return { daily: dailyArray, segments: segmentsArray };
+    const hourly = {
+      time: (d2Data.hourly?.time || []).slice(0, 48),
+      precipitation: (d2Data.hourly?.precipitation || []).slice(0, 48),
+      sunshine: shortwave.slice(0, 48)
+    };
+
+    return { daily: dailyArray, segments: segmentsArray, hourly };
   } catch (error) {
     console.error('Chyba při načítání předpovědi:', error);
-    return { daily: [], segments: [] };
+    return { daily: [], segments: [], hourly: { time: [], precipitation: [], sunshine: [] } };
   }
 }
 
@@ -386,6 +393,13 @@ function createLocationCard(loc, weather) {
   });
   header.appendChild(removeBtn);
   card.appendChild(header);
+
+  const chart = document.createElement('canvas');
+  chart.className = 'hourly-chart';
+  chart.width = 500;
+  chart.height = 150;
+  card.appendChild(chart);
+  drawHourlyChart(chart, weather.hourly);
 
   // Tělo předpovědi
   const grid = document.createElement('div');
@@ -446,6 +460,52 @@ function createLocationCard(loc, weather) {
   });
   card.appendChild(grid);
   return card;
+}
+
+function drawHourlyChart(canvas, hourly) {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const count = hourly.time.length;
+  if (count === 0) return;
+  const maxPrecip = Math.max(...hourly.precipitation, 1);
+  const maxSun = Math.max(...hourly.sunshine, 1);
+  const stepX = width / count;
+
+  // osa x
+  ctx.strokeStyle = '#888';
+  ctx.beginPath();
+  ctx.moveTo(0, height - 20);
+  ctx.lineTo(width, height - 20);
+  ctx.stroke();
+
+  // labels hours every 6h
+  ctx.fillStyle = '#333';
+  ctx.font = '10px sans-serif';
+  for (let i = 0; i < count; i += 6) {
+    const d = new Date(hourly.time[i]);
+    const label = d.getHours().toString();
+    ctx.fillText(label, i * stepX + stepX / 2 - 5, height - 5);
+  }
+
+  // precipitation bars
+  ctx.fillStyle = 'rgba(33, 150, 243, 0.6)';
+  for (let i = 0; i < count; i++) {
+    const hVal = (hourly.precipitation[i] / maxPrecip) * (height - 40);
+    ctx.fillRect(i * stepX + 1, height - 20 - hVal, stepX - 2, hVal);
+  }
+
+  // sunshine line
+  ctx.strokeStyle = '#ffd600';
+  ctx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const y = height - 20 - (hourly.sunshine[i] / maxSun) * (height - 40);
+    const x = i * stepX + stepX / 2;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
 }
 
 /**
