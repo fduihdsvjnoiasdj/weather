@@ -37,7 +37,7 @@ app.post('/api/subscribe', (req, res) => {
 
 async function fetchWeather(loc) {
   const { latitude, longitude } = loc;
-  const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
+  const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode,shortwave_radiation&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
   const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&forecast_hours=72&model=icon_eu&timezone=Europe%2FPrague`;
   const [d2Resp, euResp] = await Promise.all([fetch(d2Url), fetch(euUrl)]);
   const d2Data = await d2Resp.json();
