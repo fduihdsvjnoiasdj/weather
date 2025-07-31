@@ -29,12 +29,12 @@ function urlBase64ToUint8Array(base64String) {
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
-      .register('service-worker.js')
-      .then(() => {
-        // Service worker úspěšně zaregistrován
+      .register('sw.js')
+      .then((reg) => {
+        console.log('SW registrován', reg);
       })
       .catch((err) => {
-        console.error('ServiceWorker registration failed:', err);
+        console.error('Chyba SW', err);
       });
   }
 }
@@ -74,7 +74,7 @@ async function initApp() {
   scheduleDailyNotifications();
 
   document
-    .getElementById('enable-notifications')
+    .getElementById('subscribeBtn')
     .addEventListener('click', handleEnableNotifications);
 }
 
