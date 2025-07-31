@@ -1,6 +1,6 @@
-# Předpověď počasí – česká PWA aplikace
+# WeatherWatcher – PWA aplikace
 
-Tento projekt je jednoduchá PWA aplikace v češtině, která využívá veřejné API služby **Open‑Meteo**. Uživatelům zobrazuje předpověď počasí pro vybraná města v České republice, umožňuje vyhledávání dalších lokalit a posílá denní notifikace o **koupacích dnech** a **deštivých dnech**. Díky využití service workeru funguje i v offline režimu a lze ji nainstalovat na mobilní zařízení jako nativní aplikaci.
+WeatherWatcher je jednoduchá PWA aplikace v češtině, která využívá veřejné API služby **Open‑Meteo**. Uživatelům zobrazuje předpověď počasí pro vybraná města v České republice, umožňuje vyhledávání dalších lokalit a zasílá denní notifikace o **koupacích** a **deštivých** dnech. Díky service workeru funguje i offline a lze ji nainstalovat na mobilní zařízení.
 
 ## Použitá API
 
@@ -17,6 +17,7 @@ Tento projekt je jednoduchá PWA aplikace v češtině, která využívá veřej
 | `app.js` | JavaScript s logikou aplikace – načítání dat, vyhledávání měst, ukládání do `localStorage` a plánování notifikací. |
 | `sw.js` | Service worker umožňující offline režim a zprostředkování notifikací. |
 | `manifest.json` | Definuje parametry PWA (název, ikony, barvy, režim zobrazení). |
+| `forecast.py` | Ukázkový skript pro stažení předpovědi modelů ICON. |
 | `icons/` | Obsahuje dvě ikony (`192×192` a `512×512`) generované jako abstraktní motiv. |
 | `README.md` | Tento návod. |
 
@@ -29,7 +30,7 @@ Service worker vyžaduje ke správnému fungování webový server. Pro jednoduc
 python3 -m http.server 8000
 
 # poté v prohlížeči otevřete:
-http://localhost:8000/weather-pwa/
+http://localhost:8000/
 ```
 
 Po načtení stránky aplikace nabídne instalaci na domovskou obrazovku a požádá o povolení notifikací. Pokud aplikaci přidáte na plochu (Android/iOS) či spustíte jako samostatnou aplikaci v prohlížeči, bude nadále fungovat i bez připojení k internetu (pouze s uloženými daty).
@@ -45,6 +46,16 @@ npm start
 ```
 
 Server poslouchá na portu `3000` a zároveň obsluhuje statické soubory aplikace. Pro funkční web push mějte aplikaci dostupnou přes HTTPS.
+
+## Python skript pro modely ICON
+
+Součástí repozitáře je soubor `forecast.py`, který ukazuje, jak stáhnout 48 hodin předpovědi z modelu **ICON‑D2** a navazujících 72 hodin z **ICON‑EU**. Spusťte jej pomocí:
+
+```bash
+python3 forecast.py
+```
+
+Po úspěšném běhu se vytvoří soubory `forecast_d2.json` a `forecast_eu.json`.
 
 ## Přidání a správa měst
 

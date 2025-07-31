@@ -102,3 +102,44 @@ body {
   font-size: 1rem;
   font-weight: 500;
 }
+
+.app-header {
+  padding: var(--spacing);
+  background: var(--accent);
+  text-align: center;
+}
+
+.search {
+  margin: var(--spacing);
+}
+.search-results div {
+  padding: 4px 0;
+  cursor: pointer;
+}
+.settings {
+  margin: var(--spacing);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.locations {
+  margin: var(--spacing);
+}
+.location-card {
+  background: var(--accent);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+.location-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.remove-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
