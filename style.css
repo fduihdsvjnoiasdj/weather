@@ -1,247 +1,104 @@
-/*
- * Základní styl pro aplikaci předpovědi počasí.
- * Používá flexbox pro responzivní rozložení a světlou barevnou paletu.
- */
+:root {
+  --bg: #FFFFFF;
+  --accent: #E0F4FF;
+  --text-primary: #000000;
+  --text-secondary: #555555;
+  --radius: 16px;
+  --spacing: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'Poppins', sans-serif;
-  margin: 0;
-  padding: 0;
-  background: #fff;
-  color: #000;
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-primary);
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #000;
-    color: #fff;
-  }
+.app-container {
+  padding: var(--spacing);
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing));
 }
 
-header {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: #fff;
-  padding: 1rem;
-  text-align: center;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-header h1 {
-  margin: 0;
+.header .location {
   font-size: 1.5rem;
+  font-weight: 700;
+}
+.header .condition {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
 }
 
-.search-container {
-  margin-top: 0.5rem;
-  position: relative;
+.current-card {
+  margin-top: var(--spacing);
+  background: var(--accent);
+  border-radius: var(--radius);
+  padding: var(--spacing);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.current-card .icon svg,
+.current-card .icon img {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+}
+.current-card .temperature {
+  font-size: 3rem;
+  font-weight: 700;
+}
+.current-card .high-low {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+}
+.current-card .high-low .high,
+.current-card .high-low .low {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
-#search-input {
-  width: 90%;
-  max-width: 400px;
-  padding: 0.5rem;
-  border-radius: 4px;
-  border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.hourly-forecast {
+  margin-top: var(--spacing);
 }
-
-.search-results {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #ccc;
-  width: 90%;
-  max-width: 400px;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  z-index: 50;
-  color: #000;
+.hourly-forecast .section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 8px;
 }
-
-.search-results div {
-  padding: 0.5rem;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
+.hours-list {
+  list-style: none;
+  background: var(--bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
-
-.search-results div:last-child {
+.hour-item {
+  display: flex;
+  align-items: center;
+  padding: 12px var(--spacing);
+  border-bottom: 1px solid #EEE;
+}
+.hour-item:last-child {
   border-bottom: none;
 }
-
-.search-results div:hover {
-  background: #f1f1f1;
-}
-
-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1rem;
-}
-
-.location-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  margin: 1rem 0;
-  padding: 1rem;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.location-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.location-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.remove-btn {
-  background: transparent;
-  border: none;
-  color: #e53935;
-  font-size: 1.2rem;
-  cursor: pointer;
-}
-
-.forecast-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.forecast-day {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0.5rem;
-  border-radius: 6px;
-  text-align: center;
-  font-size: 0.9rem;
-}
-
-.forecast-day .icon {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
-  display: block;
-}
-
-.segment {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
-}
-
-.settings {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 1rem;
-  margin: 1rem auto;
-  border-radius: 8px;
-  max-width: 600px;
-  width: 90%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.settings h2 {
-  margin-top: 0;
-}
-
-.settings label {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-#notification-time {
-  padding: 0.5rem;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  margin-bottom: 0.5rem;
-}
-
-button {
-  background: #0a84ff;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
+.hour-item .hour-time {
+  flex: 1;
   font-size: 1rem;
 }
-
-button:hover {
-  background: #006be6;
-}
-
-.note {
-  font-size: 0.85rem;
-  color: #eee;
-  margin-top: 0.5rem;
-}
-
-.hourly-chart {
-  width: 100%;
-  max-width: 560px;
-  display: block;
-  margin: 0.5rem auto;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin: 0.25rem 0 0.5rem;
-  font-size: 0.8rem;
-}
-
-.chart-label {
-  text-align: center;
-  font-size: 0.9rem;
-  margin: 0.25rem 0;
-}
-
-.chart-legend .legend-item {
+.hour-item .hour-icon {
+  width: 24px;
+  height: 24px;
+  margin: 0 16px;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
 }
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.legend-color.sun {
-  background: #ffd600;
-}
-
-.legend-color.rain {
-  background: #2196f3;
+.hour-item .hour-temp {
+  font-size: 1rem;
+  font-weight: 500;
 }
