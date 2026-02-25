@@ -1,7 +1,7 @@
 /*
  * Hlavní skript pro PWA aplikaci Předpověď počasí.
  * Zajišťuje načtení dat z API Open‑Meteo, vyhledávání měst pomocí geokódovacího API,
- * zobrazování předpovědí v českém jazyce a plánování denních notifikací.
+ * zobrazování předpovědí v českém jazyce.
  */
 
 // Po načtení DOM zaregistrujeme service worker a inicializujeme aplikaci
@@ -9,21 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   initApp();
 });
-
-// VAPID veřejný klíč pro Web Push
-const VAPID_PUBLIC_KEY =
-  'BJzsAIEa1fs0XMTL38zYoEl6pWhFQ-SFldAfHpY5yYf4LXiHk1T2XQrhvHfceCJZOOWHlfqtu7Kww4K64-EyFlI';
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  const output = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; ++i) {
-    output[i] = raw.charCodeAt(i);
-  }
-  return output;
-}
 
 // Registrace service workeru pro PWA funkce
 function registerServiceWorker() {
@@ -52,11 +37,8 @@ const DEFAULT_CITIES = [
 
 // Klíče v localStorage
 const LOCATIONS_KEY = 'weatherAppLocations';
-const SETTINGS_KEY = 'weatherAppSettings';
-
 // Globální proměnné
 let locations = [];
-let notificationIntervalId;
 
 async function initApp() {
   // Načíst uložená města nebo použít výchozí
@@ -66,16 +48,6 @@ async function initApp() {
   // Nastavit hledání měst
   setupSearch();
 
-  // Načíst a nastavit čas notifikace
-  loadSettingsToUI();
-  document.getElementById('save-settings').addEventListener('click', saveSettingsFromUI);
-
-  // Naplánovat pravidelnou kontrolu pro zasílání notifikací
-  scheduleDailyNotifications();
-
-  document
-    .getElementById('subscribeBtn')
-    .addEventListener('click', handleEnableNotifications);
 }
 
 /**
@@ -114,54 +86,6 @@ async function loadLocations() {
  */
 function saveLocations() {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
-  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-    navigator.serviceWorker.ready.then((reg) =>
-      reg.pushManager.getSubscription().then((sub) => {
-        if (sub) {
-          sendSubscriptionData(sub);
-        }
-      })
-    );
-  }
-}
-
-/**
- * Načte nastavení notifikací a zobrazí je v UI.
- */
-function loadSettingsToUI() {
-  const stored = localStorage.getItem(SETTINGS_KEY);
-  let settings;
-  if (stored) {
-    try {
-      settings = JSON.parse(stored);
-    } catch (e) {
-      settings = {};
-    }
-  } else {
-    settings = { notificationTime: '07:00' };
-  }
-  document.getElementById('notification-time').value = settings.notificationTime || '07:00';
-}
-
-/**
- * Uloží nastavení notifikací z UI do localStorage a přenastaví plánovač.
- */
-function saveSettingsFromUI() {
-  const time = document.getElementById('notification-time').value;
-  const settings = { notificationTime: time };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  // Přeplánovat notifikace
-  scheduleDailyNotifications();
-  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-    navigator.serviceWorker.ready.then((reg) =>
-      reg.pushManager.getSubscription().then((sub) => {
-        if (sub) {
-          sendSubscriptionData(sub);
-        }
-      })
-    );
-  }
-  alert('Nastavení uloženo.');
 }
 
 /**
@@ -254,36 +178,23 @@ async function updateAllLocations() {
 }
 
 /**
- * Načte počasí pro dané místo z API Open‑Meteo. Využívá koncové body s modely
- * ICON‑D2 (48 hodin) a ICON‑EU (72 hodin), spojí získané hodinové hodnoty a
- * vytvoří denní souhrny.
+ * Načte počasí pro dané místo z API Open‑Meteo. Využívá model ICON‑D2
+ * (48 hodin) a vytvoří denní souhrny.
  */
 async function fetchWeather(loc) {
   const { latitude, longitude } = loc;
   try {
-    // Dotazy na jednotlivé modely. Pro první dva dny použijeme model ICON‑D2,
-    // který poskytuje vysoké rozlišení, a pro další tři dny model ICON‑EU.
     const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode,shortwave_radiation&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
-    const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&forecast_hours=72&model=icon_eu&timezone=Europe%2FPrague`;
-    const [d2Resp, euResp] = await Promise.all([fetch(d2Url), fetch(euUrl)]);
+    const d2Resp = await fetch(d2Url);
     const d2Data = await d2Resp.json();
-    const euData = await euResp.json();
-    // Sloučení časových řad
-    const time = (d2Data.hourly?.time || []).concat(euData.hourly?.time || []);
-    const temps = (d2Data.hourly?.temperature_2m || []).concat(
-      euData.hourly?.temperature_2m || []
-    );
-    const precipitation = (d2Data.hourly?.precipitation || []).concat(
-      euData.hourly?.precipitation || []
-    );
-    const precipitationProb = (d2Data.hourly?.precipitation_probability || []).concat(
-      euData.hourly?.precipitation_probability || []
-    );
-    const codes = (d2Data.hourly?.weathercode || []).concat(
-      euData.hourly?.weathercode || []
-    );
+
+    const time = d2Data.hourly?.time || [];
+    const temps = d2Data.hourly?.temperature_2m || [];
+    const precipitation = d2Data.hourly?.precipitation || [];
+    const precipitationProb = d2Data.hourly?.precipitation_probability || [];
+    const codes = d2Data.hourly?.weathercode || [];
     const shortwave = d2Data.hourly?.shortwave_radiation || [];
-    // Vytvořit denní souhrny (5 dní)
+    // Vytvořit denní souhrny (2 dny)
     const daily = {};
     for (let i = 0; i < time.length; i++) {
       const dateStr = time[i].split('T')[0];
@@ -306,7 +217,7 @@ async function fetchWeather(loc) {
     // Převést na pole a spočítat statistiky
     const dailyArray = Object.keys(daily)
       .sort()
-      .slice(0, 5)
+      .slice(0, 2)
       .map((dateStr) => {
         const info = daily[dateStr];
         const tempMax = Math.max(...info.temps);
@@ -328,9 +239,9 @@ async function fetchWeather(loc) {
         };
       });
 
-    // Podrobné úseky pro první čtyři dny
+    // Podrobné úseky pro první dva dny
     const segments = {};
-    const limit = Math.min(time.length, 96); // první 96 hodin
+    const limit = Math.min(time.length, 48); // první 48 hodin
     for (let i = 0; i < limit; i++) {
       const d = new Date(time[i]);
       const h = d.getHours();
@@ -353,7 +264,7 @@ async function fetchWeather(loc) {
     }
     const segmentsArray = Object.keys(segments)
       .sort()
-      .slice(0, 4)
+      .slice(0, 2)
       .map((dateStr) => ({ date: dateStr, ...segments[dateStr] }));
 
     const hourly = {
@@ -429,7 +340,7 @@ function createLocationCard(loc, weather) {
     segments[s.date] = s;
   });
 
-  dailyForecast.forEach((day, idx) => {
+  dailyForecast.forEach((day) => {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'forecast-day';
     const iconSpan = document.createElement('span');
@@ -446,7 +357,7 @@ function createLocationCard(loc, weather) {
     const tempP = document.createElement('div');
     tempP.textContent = `${Math.round(day.tempMax)}° / ${Math.round(day.tempMin)}°`;
     dayDiv.appendChild(tempP);
-    if (idx < 4 && segments[day.date]) {
+    if (segments[day.date]) {
       ['night', 'morning', 'day'].forEach((part) => {
         const seg = document.createElement('div');
         seg.className = 'segment';
@@ -561,209 +472,6 @@ function getWeatherIcon(code) {
   return '☁️'; // výchozí
 }
 
-// Pokusí se naplánovat notifikaci pomocí Notification Triggers.
-// Vrátí true, pokud bylo naplánování úspěšné.
-async function scheduleNotificationTrigger(timeStr) {
-  if (!('showTrigger' in Notification.prototype)) {
-    return false;
-  }
-  if (Notification.permission === 'default') {
-    await Notification.requestPermission();
-  }
-  if (Notification.permission !== 'granted') {
-    return false;
-  }
-  const registration = await navigator.serviceWorker.getRegistration();
-  if (!registration) {
-    return false;
-  }
-
-  const [h, m] = timeStr.split(':').map((v) => parseInt(v, 10));
-  const now = new Date();
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
-  if (target <= now) {
-    target.setDate(target.getDate() + 1);
-  }
-
-  const messages = [];
-  for (const loc of locations) {
-    try {
-      const weather = await fetchWeather(loc);
-      const daily = weather.daily;
-      if (daily && daily.length > 0) {
-        const firstTwo = daily.slice(0, 2);
-        const willRain = firstTwo.some((d) => d.precipitation >= 1 || d.precipProb > 50);
-        const willSwim = firstTwo.some((d) => d.tempMax >= 25 && d.precipitation < 1);
-        if (willRain) {
-          messages.push(`🌧️ ${loc.name}: během následujících 48 h může pršet`);
-        } else if (willSwim) {
-          messages.push(`🏖️ ${loc.name}: v příštích 48 h to vypadá na koupání!`);
-        }
-      }
-    } catch (err) {
-      console.error('Chyba při plánování notifikace:', err);
-    }
-  }
-
-  if (messages.length === 0) {
-    return false;
-  }
-
-  const body = messages.join('\n');
-  registration.showNotification('Předpověď na 48 hodin', {
-    body,
-    badge: 'icons/icon-192.png',
-    icon: 'icons/icon-192.png',
-    showTrigger: new TimestampTrigger(target.getTime()),
-    tag: 'daily-weather'
-  });
-  return true;
-}
-
-/**
- * Naplánuje periodickou kontrolu pro odesílání denních notifikací. Každou
- * minutu zkontroluje, zda nastal nastavený čas. Pokud ano, zavolá funkci
- * checkForNotification() pro všechny uložené lokace.
- */
-async function scheduleDailyNotifications() {
-  // Zrušit případný existující interval
-  if (notificationIntervalId) {
-    clearInterval(notificationIntervalId);
-  }
-
-  const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-  const targetTime = settings.notificationTime || '07:00';
-
-  // Pokus o naplánování pomocí Notification Triggers (Chrome/Android)
-  const triggerScheduled = await scheduleNotificationTrigger(targetTime);
-  if (triggerScheduled) {
-    return;
-  }
-
-  // Fallback pomocí běžného intervalu – funguje pouze při otevřené aplikaci
-  notificationIntervalId = setInterval(async () => {
-    const now = new Date();
-    const [h, m] = targetTime.split(':').map((v) => parseInt(v, 10));
-    if (now.getHours() === h && now.getMinutes() === m) {
-      // Počkej několik sekund, aby se předešlo opakovaným notifikacím v rámci minuty
-      clearInterval(notificationIntervalId);
-      await checkForNotification();
-      // Obnov interval až za minutu, aby nedošlo k více notifikacím
-      setTimeout(() => {
-        scheduleDailyNotifications();
-      }, 60 * 1000);
-    }
-  }, 30 * 1000); // kontrola každých 30 sekund
-}
-
-/**
- * Zkontroluje pro každé uložené město, zda je v daný den koupací den či déšť,
- * a zobrazí notifikaci.
- */
-async function checkForNotification() {
-  // Zjisti, zda uživatel povolil notifikace
-  if (Notification.permission === 'default') {
-    await Notification.requestPermission();
-  }
-  if (Notification.permission !== 'granted') {
-    return;
-  }
-  for (const loc of locations) {
-    try {
-      const weather = await fetchWeather(loc);
-      const daily = weather.daily;
-      if (daily && daily.length > 0) {
-        const firstTwo = daily.slice(0, 2);
-        const willRain = firstTwo.some((d) => d.precipitation >= 1 || d.precipProb > 50);
-        const willSwim = firstTwo.some((d) => d.tempMax >= 25 && d.precipitation < 1);
-        if (willRain) {
-          showNotification(`Deštníkový alarm pro ${loc.name}!`, {
-            body: 'Během příštích 48 hodin má sprchnout.',
-            badge: 'icons/icon-192.png',
-            icon: 'icons/icon-192.png'
-          });
-        } else if (willSwim) {
-          showNotification(`Hurá k vodě do ${loc.name}!`, {
-            body: 'V následujících 48 hodinách bude koupací počasí.',
-            badge: 'icons/icon-192.png',
-            icon: 'icons/icon-192.png'
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Chyba při kontrole notifikací:', err);
-    }
-  }
-}
-
-/**
- * Vykreslí notifikaci pomocí service workeru, pokud je k dispozici.
- */
-function showNotification(title, options) {
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'notify', title, options });
-  } else if ('Notification' in window) {
-    new Notification(title, options);
-  }
-}
-
-async function handleEnableNotifications() {
-  if (!('Notification' in window)) {
-    alert('Tento prohlížeč nepodporuje notifikace.');
-    return;
-  }
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    alert('Notifikace nejsou povoleny.');
-    return;
-  }
-  try {
-    await subscribeForPush();
-    alert('Notifikace byly povoleny.');
-  } catch (err) {
-    console.error('Nepodařilo se zaregistrovat push:', err);
-  }
-}
-
-async function subscribeForPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    return;
-  }
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-    await sendSubscriptionData(sub);
-  } catch (err) {
-    console.error('Chyba při vytváření push subscription:', err);
-  }
-}
-
-async function sendSubscriptionData(sub) {
-  try {
-    const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    await fetch('/api/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscription: sub,
-        locations,
-        notificationTime: settings.notificationTime || '07:00'
-      })
-    });
-  } catch (err) {
-    console.error('Chyba při odesílání dat na server:', err);
-  }
-}
-
-// Požádá uživatele o povolení notifikací, pokud ještě nebylo uděleno
-function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-}
 if (typeof module !== "undefined") {
   module.exports = { getWeatherIcon };
 }
