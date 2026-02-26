@@ -214,7 +214,7 @@ main {
 
 .daily-row {
   display: grid;
-  grid-template-columns: 52px 26px 42px 1fr 42px;
+  grid-template-columns: 52px 26px 42px 38px 1fr 42px;
   align-items: center;
   gap: 6px;
   font-size: 0.92rem;
@@ -250,11 +250,8 @@ main {
 }
 
 .day-min {
-  position: absolute;
-  left: -34px;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 0.86rem;
+  text-align: right;
 }
 
 .details-grid {
@@ -284,11 +281,7 @@ main {
 
 @media (max-width: 600px) {
   .daily-row {
-    grid-template-columns: 48px 24px 36px 1fr 36px;
+    grid-template-columns: 48px 24px 34px 34px 1fr 36px;
     font-size: 0.86rem;
-  }
-
-  .day-min {
-    left: -30px;
   }
 }
