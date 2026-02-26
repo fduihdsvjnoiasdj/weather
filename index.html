@@ -3,18 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WeatherWatcher</title>
+    <title>Počasí 48h</title>
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="theme-color" content="#2b4f96" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="app-header">
-      <h1>WeatherWatcher</h1>
+      <p class="eyebrow">Počasí</p>
+      <h1>48h předpověď (ICON D2)</h1>
     </header>
     <main>
       <section class="search">
-        <input id="search-input" type="text" placeholder="Hledat město..." />
+        <input id="search-input" type="text" placeholder="Hledat město" autocomplete="off" />
         <div id="search-results" class="search-results"></div>
       </section>
       <section id="locations-container" class="locations"></section>
