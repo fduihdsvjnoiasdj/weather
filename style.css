@@ -13,6 +13,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
   background:
@@ -45,6 +46,7 @@ main {
   padding: 14px 14px calc(env(safe-area-inset-bottom) + 30px);
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .search,
@@ -94,10 +96,12 @@ main {
 .locations {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .location-card {
   padding: 16px;
+  min-width: 0;
 }
 
 .hero {
@@ -166,6 +170,7 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: var(--panel);
   padding: 10px;
+  min-width: 0;
 }
 
 .panel h3 {
@@ -182,6 +187,7 @@ main {
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 2px;
+  max-width: 100%;
 }
 
 .hour-item {
