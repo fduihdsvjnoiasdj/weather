@@ -1,0 +1,36 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="70" y1="40" x2="460" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7CC2FF"/>
+      <stop offset="0.55" stop-color="#477CEC"/>
+      <stop offset="1" stop-color="#2D51C9"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(174 160) rotate(51.7) scale(131)">
+      <stop stop-color="#FFF7B4"/>
+      <stop offset="0.58" stop-color="#FFD14D"/>
+      <stop offset="1" stop-color="#FFAF32"/>
+    </radialGradient>
+    <linearGradient id="cloud" x1="316" y1="244" x2="316" y2="404" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCE9FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="12" y="12" width="488" height="488" rx="110" fill="url(#bg)"/>
+  <circle cx="170" cy="164" r="90" fill="url(#sun)"/>
+
+  <g fill="#FFD366">
+    <rect x="165" y="36" width="10" height="28" rx="5"/>
+    <rect x="165" y="264" width="10" height="28" rx="5"/>
+    <rect x="42" y="159" width="28" height="10" rx="5"/>
+    <rect x="270" y="159" width="28" height="10" rx="5"/>
+    <rect x="80" y="79" width="10" height="28" rx="5" transform="rotate(-45 80 79)"/>
+    <rect x="241" y="240" width="10" height="28" rx="5" transform="rotate(-45 241 240)"/>
+    <rect x="241" y="79" width="10" height="28" rx="5" transform="rotate(45 241 79)"/>
+    <rect x="80" y="240" width="10" height="28" rx="5" transform="rotate(45 80 240)"/>
+  </g>
+
+  <g>
+    <path d="M172 326C172 281.817 207.817 246 252 246C281.851 246 307.883 262.503 321.528 286.931C325.266 286.317 329.103 286 333 286C371.66 286 403 317.34 403 356C403 394.66 371.66 426 333 426H214C178.654 426 150 397.346 150 362C150 335.49 166.135 312.749 189.126 303.061C177.893 312.183 172 325.972 172 326Z" fill="url(#cloud)"/>
+  </g>
+</svg>

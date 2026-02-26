@@ -1,6 +1,6 @@
 {
-  "name": "WeatherWatcher",
-  "short_name": "Watcher",
+  "name": "Počasí",
+  "short_name": "Počasí",
   "description": "PWA aplikace pro sledování počasí a denní upozornění.",
   "lang": "cs",
   "start_url": ".",
@@ -8,6 +8,12 @@
   "background_color": "#1E1E2A",
   "theme_color": "#1E1E2A",
   "icons": [
+    {
+      "src": "icons/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "icons/icon-192.png",
       "sizes": "192x192",

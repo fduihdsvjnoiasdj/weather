@@ -273,6 +273,7 @@ function createLocationCard(loc, weather) {
       <span class="day-name">${index === 0 ? 'Dnes' : formatDay(day.date)}</span>
       <span class="day-icon">${getWeatherIcon(day.weatherCode)}</span>
       <span class="day-rain">${day.avgPrecip}%</span>
+      <span class="day-min">${Math.round(day.tempMin)}°</span>
       <div class="temp-range">${buildRange(day.tempMin, day.tempMax, minTemp, maxTemp)}</div>
       <span class="day-max">${Math.round(day.tempMax)}°</span>
     `;
@@ -290,7 +291,6 @@ function buildRange(min, max, globalMin, globalMax) {
   return `
     <span class="range-track"></span>
     <span class="range-fill" style="left:${left}%;width:${Math.max(width, 8)}%"></span>
-    <span class="day-min">${Math.round(min)}°</span>
   `;
 }
 
