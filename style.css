@@ -387,7 +387,24 @@ body {
 }
 
 .page-dot.loc-dot {
-  /* location pin dot – slightly different style */
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.page-dot.loc-dot.active {
+  color: #ffffff;
+  background: none;
+  transform: none;
+}
+
+.page-dot.loc-dot svg {
+  display: block;
 }
 
 /* ---- Search Overlay ---- */
@@ -487,15 +504,15 @@ body {
 
 .city-list-card {
   border-radius: 16px;
-  padding: 14px 16px;
+  padding: 14px 12px 14px 6px;
   background: linear-gradient(135deg, rgba(74, 144, 217, 0.6), rgba(100, 160, 220, 0.3));
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
   border: 0.5px solid var(--glass-border);
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 6px;
   transition: transform 0.15s, opacity 0.15s;
   position: relative;
 }
@@ -509,6 +526,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .city-list-name {
@@ -532,6 +551,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  flex-shrink: 0;
 }
 
 .city-list-temp {
@@ -566,8 +586,71 @@ body {
   transition: opacity 0.15s;
 }
 
-.city-list-card:hover .city-list-remove {
-  opacity: 1;
+.city-list-card:hover .city-list-remove,
+.city-list-remove {
+  opacity: 0.7;
+}
+
+/* ---- Drag Handle ---- */
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.city-list-card.dragging {
+  opacity: 0.3;
+}
+
+.city-list-card.drag-over-above {
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  margin-top: -2px;
+}
+
+.city-list-card.drag-over-below {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.7);
+  margin-bottom: -2px;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 300;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: scale(1.03);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Model Badge ---- */
+
+.model-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin-left: 3px;
+  vertical-align: super;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
 }
 
 /* ---- Empty state ---- */

@@ -25,20 +25,90 @@ async function initApp() {
   setupPageDots();
 }
 
+/* ---- Geolocation ---- */
+
+function getUserLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+    );
+  });
+}
+
+async function reverseGeocode(latitude, longitude) {
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${latitude.toFixed(2)},${longitude.toFixed(2)}&count=1&language=cs`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.results && data.results.length > 0) {
+      return data.results[0].name;
+    }
+  } catch (_) {
+    // Fallback handled below
+  }
+  return null;
+}
+
 async function loadLocations() {
   const stored = localStorage.getItem(LOCATIONS_KEY);
-  let locs = [...DEFAULT_CITIES];
+  let locs;
 
   if (stored) {
     try {
       locs = JSON.parse(stored);
     } catch (_error) {
-      locs = [...DEFAULT_CITIES];
+      locs = null;
     }
   }
 
+  // Ensure geolocation entry exists
+  const hasGeoLoc = locs && locs.some((l) => l.isGeoLocation);
+
+  if (!locs) {
+    // First launch — try geolocation, fallback to defaults
+    const geoPos = await getUserLocation();
+    if (geoPos) {
+      locs = [
+        { name: 'Moje poloha', latitude: geoPos.latitude, longitude: geoPos.longitude, isGeoLocation: true },
+        ...DEFAULT_CITIES
+      ];
+    } else {
+      locs = [
+        { name: 'Moje poloha', isGeoLocation: true },
+        ...DEFAULT_CITIES
+      ];
+    }
+  } else if (!hasGeoLoc) {
+    // Existing data but no geoloc entry — add it at position 0
+    const geoPos = await getUserLocation();
+    if (geoPos) {
+      locs.unshift({ name: 'Moje poloha', latitude: geoPos.latitude, longitude: geoPos.longitude, isGeoLocation: true });
+    } else {
+      locs.unshift({ name: 'Moje poloha', isGeoLocation: true });
+    }
+  } else {
+    // Refresh geolocation coordinates
+    const geoLoc = locs.find((l) => l.isGeoLocation);
+    if (geoLoc) {
+      const geoPos = await getUserLocation();
+      if (geoPos) {
+        geoLoc.latitude = geoPos.latitude;
+        geoLoc.longitude = geoPos.longitude;
+      }
+    }
+  }
+
+  // Geocode any location missing coordinates
   for (const loc of locs) {
     if (!loc.latitude || !loc.longitude) {
+      if (loc.isGeoLocation) continue; // Skip geoloc if denied
       const geo = await geocodeCity(loc.name);
       if (geo) {
         loc.latitude = geo.latitude;
@@ -46,6 +116,9 @@ async function loadLocations() {
       }
     }
   }
+
+  // Remove geoloc entry if it still has no coordinates (permission denied)
+  locs = locs.filter((l) => !l.isGeoLocation || (l.latitude && l.longitude));
 
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locs));
   return locs;
@@ -88,7 +161,9 @@ function setupSearch() {
           );
 
           if (!exists) {
-            locations.unshift({
+            // Insert after geolocation entry (which is always first)
+            const insertIdx = locations[0]?.isGeoLocation ? 1 : 0;
+            locations.splice(insertIdx, 0, {
               name: res.name,
               latitude: res.latitude,
               longitude: res.longitude
@@ -127,6 +202,10 @@ function closeSearchOverlay() {
   document.getElementById('search-results').innerHTML = '';
 }
 
+/* ---- City List with Drag & Drop ---- */
+
+let dragState = null;
+
 function renderCityList() {
   const container = document.getElementById('city-list');
   container.innerHTML = '';
@@ -135,6 +214,7 @@ function renderCityList() {
     const cached = weatherCache.get(locKey(loc));
     const card = document.createElement('div');
     card.className = 'city-list-card';
+    card.dataset.index = index;
 
     const current = cached?.current;
     const today = cached?.daily?.[0];
@@ -142,9 +222,14 @@ function renderCityList() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
 
+    const displayName = loc.isGeoLocation ? `📍 ${loc.name}` : loc.name;
+    const canRemove = !loc.isGeoLocation;
+    const canDrag = !loc.isGeoLocation;
+
     card.innerHTML = `
+      ${canDrag ? '<div class="drag-handle"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></div>' : '<div class="drag-handle-spacer"></div>'}
       <div class="city-list-left">
-        <div class="city-list-name">${loc.name}</div>
+        <div class="city-list-name">${displayName}</div>
         <div class="city-list-time">${timeStr}</div>
         <div class="city-list-condition">${current ? describeWeather(current.weatherCode) : ''}</div>
       </div>
@@ -152,27 +237,133 @@ function renderCityList() {
         <div class="city-list-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
         <div class="city-list-highlow">${today ? `H:${Math.round(today.tempMax)}° L:${Math.round(today.tempMin)}°` : ''}</div>
       </div>
-      <button class="city-list-remove" type="button" title="Odstranit">×</button>
+      ${canRemove ? '<button class="city-list-remove" type="button" title="Odstranit">×</button>' : ''}
     `;
 
+    // Card click → navigate to page
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.city-list-remove')) return;
+      if (e.target.closest('.city-list-remove') || e.target.closest('.drag-handle')) return;
       closeSearchOverlay();
       scrollToPage(index);
     });
 
-    card.querySelector('.city-list-remove').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      locations = locations.filter((item) => item !== loc);
-      saveLocations();
-      weatherCache.delete(locKey(loc));
-      if (currentPage >= locations.length) currentPage = Math.max(0, locations.length - 1);
-      await updateAllLocations();
-      renderCityList();
-    });
+    // Remove button
+    if (canRemove) {
+      card.querySelector('.city-list-remove').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        locations = locations.filter((item) => item !== loc);
+        saveLocations();
+        weatherCache.delete(locKey(loc));
+        if (currentPage >= locations.length) currentPage = Math.max(0, locations.length - 1);
+        await updateAllLocations();
+        renderCityList();
+      });
+    }
+
+    // Touch drag & drop (only for non-geolocation items)
+    if (canDrag) {
+      const handle = card.querySelector('.drag-handle');
+      handle.addEventListener('touchstart', (e) => onDragStart(e, card, index), { passive: false });
+    }
 
     container.appendChild(card);
   });
+}
+
+function onDragStart(e, card, index) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const container = document.getElementById('city-list');
+  const touch = e.touches[0];
+  const rect = card.getBoundingClientRect();
+
+  // Create ghost clone
+  const ghost = card.cloneNode(true);
+  ghost.className = 'city-list-card drag-ghost';
+  ghost.style.width = rect.width + 'px';
+  ghost.style.top = rect.top + 'px';
+  ghost.style.left = rect.left + 'px';
+  document.body.appendChild(ghost);
+
+  card.classList.add('dragging');
+
+  dragState = {
+    sourceIndex: index,
+    currentIndex: index,
+    ghost,
+    card,
+    startY: touch.clientY,
+    offsetY: touch.clientY - rect.top,
+    container
+  };
+
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend', onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!dragState) return;
+  e.preventDefault();
+
+  const touch = e.touches[0];
+  dragState.ghost.style.top = (touch.clientY - dragState.offsetY) + 'px';
+
+  // Determine which card we're over
+  const cards = Array.from(dragState.container.querySelectorAll('.city-list-card:not(.dragging)'));
+  let targetIndex = dragState.sourceIndex;
+
+  for (const otherCard of cards) {
+    const otherRect = otherCard.getBoundingClientRect();
+    const otherMid = otherRect.top + otherRect.height / 2;
+
+    if (touch.clientY < otherMid) {
+      targetIndex = parseInt(otherCard.dataset.index, 10);
+      break;
+    }
+    targetIndex = parseInt(otherCard.dataset.index, 10) + 1;
+  }
+
+  // Clamp: can't move to position 0 if that's geolocation
+  if (locations[0]?.isGeoLocation && targetIndex < 1) {
+    targetIndex = 1;
+  }
+
+  // Visual indicator
+  cards.forEach((c) => c.classList.remove('drag-over-above', 'drag-over-below'));
+  if (targetIndex !== dragState.sourceIndex) {
+    const indicator = cards.find((c) => parseInt(c.dataset.index, 10) === targetIndex);
+    if (indicator) {
+      indicator.classList.add('drag-over-above');
+    } else if (cards.length > 0) {
+      cards[cards.length - 1].classList.add('drag-over-below');
+    }
+  }
+
+  dragState.currentIndex = targetIndex;
+}
+
+async function onDragEnd() {
+  if (!dragState) return;
+
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend', onDragEnd);
+
+  dragState.ghost.remove();
+  dragState.card.classList.remove('dragging');
+
+  const { sourceIndex, currentIndex } = dragState;
+  dragState = null;
+
+  if (sourceIndex !== currentIndex) {
+    const [moved] = locations.splice(sourceIndex, 1);
+    const insertAt = currentIndex > sourceIndex ? currentIndex - 1 : currentIndex;
+    locations.splice(insertAt, 0, moved);
+    saveLocations();
+    await updateAllLocations();
+  }
+
+  renderCityList();
 }
 
 /* ---- Page Dots ---- */
@@ -193,9 +384,18 @@ function renderDots() {
   const container = document.getElementById('page-dots');
   container.innerHTML = '';
 
-  locations.forEach((_, i) => {
+  locations.forEach((loc, i) => {
     const dot = document.createElement('div');
-    dot.className = `page-dot${i === currentPage ? ' active' : ''}`;
+    const isActive = i === currentPage;
+
+    if (loc.isGeoLocation) {
+      // Location arrow icon (like Apple Weather)
+      dot.className = `page-dot loc-dot${isActive ? ' active' : ''}`;
+      dot.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>';
+    } else {
+      dot.className = `page-dot${isActive ? ' active' : ''}`;
+    }
+
     dot.addEventListener('click', () => scrollToPage(i));
     container.appendChild(dot);
   });
@@ -237,38 +437,48 @@ async function geocodeCity(name) {
 
 async function fetchWeather(loc) {
   const { latitude, longitude } = loc;
-  const url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,apparent_temperature,precipitation_probability,weathercode,relative_humidity_2m,windspeed_10m&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
+
+  const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,apparent_temperature,precipitation_probability,weathercode,relative_humidity_2m,windspeed_10m&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
+  const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,apparent_temperature,precipitation_probability,weathercode,relative_humidity_2m,windspeed_10m&forecast_days=5&model=icon_eu&timezone=Europe%2FPrague`;
 
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
+    const [d2Resp, euResp] = await Promise.all([fetch(d2Url), fetch(euUrl)]);
+    const [d2Data, euData] = await Promise.all([d2Resp.json(), euResp.json()]);
 
-    const time = data.hourly?.time || [];
-    const temperatures = data.hourly?.temperature_2m || [];
-    const apparent = data.hourly?.apparent_temperature || [];
-    const precipProb = data.hourly?.precipitation_probability || [];
-    const weathercode = data.hourly?.weathercode || [];
-    const humidity = data.hourly?.relative_humidity_2m || [];
-    const wind = data.hourly?.windspeed_10m || [];
+    // Parse ICON D2 hourly (48h)
+    const d2Hourly = parseHourly(d2Data, 48);
 
-    const hourly = time.slice(0, 48).map((hour, index) => ({
-      time: hour,
-      temp: temperatures[index],
-      apparent: apparent[index],
-      precipProb: precipProb[index] || 0,
-      weatherCode: weathercode[index],
-      humidity: humidity[index],
-      wind: wind[index]
-    }));
+    // Parse ICON EU hourly (full 5 days)
+    const euHourly = parseHourly(euData, 120);
 
-    const current = hourly[0] || null;
-    const daily = buildDailyForecast(hourly);
+    const current = d2Hourly[0] || null;
+    const daily = buildExtendedDaily(d2Hourly, euHourly);
 
-    return { current, hourly, daily };
+    return { current, hourly: d2Hourly, daily };
   } catch (error) {
     console.error('Chyba při načítání předpovědi:', error);
     return { current: null, hourly: [], daily: [] };
   }
+}
+
+function parseHourly(data, maxHours) {
+  const time = data.hourly?.time || [];
+  const temperatures = data.hourly?.temperature_2m || [];
+  const apparent = data.hourly?.apparent_temperature || [];
+  const precipProb = data.hourly?.precipitation_probability || [];
+  const weathercode = data.hourly?.weathercode || [];
+  const humidity = data.hourly?.relative_humidity_2m || [];
+  const wind = data.hourly?.windspeed_10m || [];
+
+  return time.slice(0, maxHours).map((hour, index) => ({
+    time: hour,
+    temp: temperatures[index],
+    apparent: apparent[index],
+    precipProb: precipProb[index] || 0,
+    weatherCode: weathercode[index],
+    humidity: humidity[index],
+    wind: wind[index]
+  }));
 }
 
 function locKey(loc) {
@@ -316,8 +526,9 @@ function createCityPage(loc, weather) {
   // City header
   const header = document.createElement('div');
   header.className = 'city-header';
+  const displayName = loc.isGeoLocation ? `📍 ${loc.name}` : loc.name;
   header.innerHTML = `
-    <div class="city-name">${loc.name}</div>
+    <div class="city-name">${displayName}</div>
     <div class="city-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
     <div class="city-condition">${current ? describeWeather(current.weatherCode) : 'Data nejsou dostupná'}</div>
     <div class="city-highlow">${today ? `H:${Math.round(today.tempMax)}°  L:${Math.round(today.tempMin)}°` : ''}</div>
@@ -352,13 +563,14 @@ function createCityPage(loc, weather) {
   });
   page.appendChild(hourlyPanel);
 
-  // Daily panel
+  // Daily panel — 5 day forecast
+  const dailyCount = weather.daily.length;
   const dailyPanel = document.createElement('div');
   dailyPanel.className = 'glass-panel';
   dailyPanel.innerHTML = `
     <div class="panel-label">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Předpověď na 2 dny
+      Předpověď na ${dailyCount} ${dailyCount === 1 ? 'den' : dailyCount < 5 ? 'dny' : 'dní'}
     </div>
     <div class="daily-list"></div>
   `;
@@ -370,12 +582,14 @@ function createCityPage(loc, weather) {
   weather.daily.forEach((day, index) => {
     const row = document.createElement('div');
     row.className = 'daily-row';
+    const dayLabel = index === 0 ? 'Dnes' : formatDay(day.date);
+    const modelBadge = day.source === 'eu' ? '<span class="model-badge">EU</span>' : '';
     row.innerHTML = `
-      <span class="day-name">${index === 0 ? 'Dnes' : formatDay(day.date)}</span>
+      <span class="day-name">${dayLabel}</span>
       <span class="day-icon">${getWeatherIcon(day.weatherCode)}</span>
       <span class="day-min">${Math.round(day.tempMin)}°</span>
       <div class="temp-range">${buildRange(day.tempMin, day.tempMax, minTemp, maxTemp)}</div>
-      <span class="day-max">${Math.round(day.tempMax)}°</span>
+      <span class="day-max">${Math.round(day.tempMax)}°${modelBadge}</span>
     `;
     dailyList.appendChild(row);
   });
@@ -441,7 +655,7 @@ function createCityPage(loc, weather) {
   footer.style.marginBottom = '20px';
   footer.innerHTML = `
     <div style="font-size:0.78rem;color:var(--text-secondary)">
-      Model ICON D2 · Open-Meteo
+      ICON D2 (48h) + ICON EU (5 dní) · Open-Meteo
     </div>
   `;
   page.appendChild(footer);
@@ -459,7 +673,21 @@ function buildRange(min, max, globalMin, globalMax) {
   return `<span class="range-fill" style="left:${left}%;width:${Math.max(width, 8)}%"></span>`;
 }
 
-function buildDailyForecast(hourly) {
+function buildExtendedDaily(d2Hourly, euHourly) {
+  // Build daily from D2 (days 1–2)
+  const d2Daily = buildDailyFromHourly(d2Hourly, 'd2');
+
+  // Build daily from EU (all 5 days)
+  const euDaily = buildDailyFromHourly(euHourly, 'eu');
+
+  // D2 covers first 2 dates. Take remaining from EU.
+  const d2Dates = new Set(d2Daily.map((d) => d.date));
+  const euExtra = euDaily.filter((d) => !d2Dates.has(d.date));
+
+  return [...d2Daily, ...euExtra].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function buildDailyFromHourly(hourly, source) {
   const grouped = {};
 
   hourly.forEach((hour) => {
@@ -475,7 +703,6 @@ function buildDailyForecast(hourly) {
 
   return Object.keys(grouped)
     .sort()
-    .slice(0, 2)
     .map((date) => {
       const info = grouped[date];
       const tempMax = Math.max(...info.temps);
@@ -490,7 +717,7 @@ function buildDailyForecast(hourly) {
         Object.keys(codeCounts).reduce((a, b) => (codeCounts[a] > codeCounts[b] ? a : b), 0)
       );
 
-      return { date, tempMax, tempMin, avgPrecip, weatherCode };
+      return { date, tempMax, tempMin, avgPrecip, weatherCode, source };
     });
 }
 
@@ -500,8 +727,16 @@ function formatHour(hour) {
 }
 
 function formatDay(dateStr) {
-  const date = new Date(`${dateStr}T12:00:00`);
-  return date.toLocaleDateString('cs-CZ', { weekday: 'short' }).replace('.', '');
+  const today = new Date();
+  const target = new Date(`${dateStr}T12:00:00`);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (target.toDateString() === tomorrow.toDateString()) {
+    return 'Zítra';
+  }
+
+  return target.toLocaleDateString('cs-CZ', { weekday: 'short' }).replace('.', '');
 }
 
 function describeWeather(code) {
@@ -531,7 +766,6 @@ function getWeatherIcon(code) {
 function getWeatherBgClass(code) {
   if (code === undefined || code === null) return 'weather-cloudy';
 
-  // Check if it's nighttime (rough heuristic)
   const hour = new Date().getHours();
   const isNight = hour < 6 || hour > 20;
 
