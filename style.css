@@ -387,7 +387,24 @@ body {
 }
 
 .page-dot.loc-dot {
-  /* location pin dot – slightly different style */
+  position: relative;
+}
+
+.page-dot.loc-dot::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.6);
+}
+
+.page-dot.loc-dot.active::before {
+  border-bottom-color: #ffffff;
 }
 
 /* ---- Search Overlay ---- */
@@ -547,10 +564,52 @@ body {
   margin-top: 2px;
 }
 
-.city-list-remove {
+.city-list-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.city-list-card:hover .city-list-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .city-list-actions {
+    opacity: 1;
+  }
+}
+
+.city-list-move {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  font-size: 0.65rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.city-list-move:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.city-list-move:not(:disabled):active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.city-list-remove {
   width: 24px;
   height: 24px;
   border: none;
@@ -562,12 +621,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s;
 }
 
-.city-list-card:hover .city-list-remove {
-  opacity: 1;
+.city-list-remove:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ---- GPS indicators ---- */
+
+.gps-indicator {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 4px;
+  opacity: 0.8;
+}
+
+.gps-header-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 2px;
+  opacity: 0.8;
 }
 
 /* ---- Empty state ---- */

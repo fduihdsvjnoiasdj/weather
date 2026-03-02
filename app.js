@@ -25,14 +25,57 @@ async function initApp() {
   setupPageDots();
 }
 
+function getGPSLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+      },
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+    );
+  });
+}
+
+async function reverseGeocode(latitude, longitude) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=cs&zoom=10`;
+    const resp = await fetch(url, { headers: { 'User-Agent': 'PocasiPWA/1.0' } });
+    const data = await resp.json();
+    return data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || 'Moje poloha';
+  } catch {
+    return 'Moje poloha';
+  }
+}
+
 async function loadLocations() {
   const stored = localStorage.getItem(LOCATIONS_KEY);
-  let locs = [...DEFAULT_CITIES];
+  let locs;
 
   if (stored) {
     try {
       locs = JSON.parse(stored);
     } catch (_error) {
+      locs = [...DEFAULT_CITIES];
+    }
+  } else {
+    const gpsCoords = await getGPSLocation();
+    if (gpsCoords) {
+      const cityName = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
+      locs = [{
+        name: cityName,
+        latitude: gpsCoords.latitude,
+        longitude: gpsCoords.longitude,
+        isGPS: true
+      }];
+    } else {
       locs = [...DEFAULT_CITIES];
     }
   }
@@ -44,6 +87,15 @@ async function loadLocations() {
         loc.latitude = geo.latitude;
         loc.longitude = geo.longitude;
       }
+    }
+  }
+
+  const gpsLoc = locs.find((l) => l.isGPS);
+  if (gpsLoc) {
+    const freshCoords = await getGPSLocation();
+    if (freshCoords) {
+      gpsLoc.latitude = freshCoords.latitude;
+      gpsLoc.longitude = freshCoords.longitude;
     }
   }
 
@@ -144,7 +196,7 @@ function renderCityList() {
 
     card.innerHTML = `
       <div class="city-list-left">
-        <div class="city-list-name">${loc.name}</div>
+        <div class="city-list-name">${loc.isGPS ? '<svg class="gps-indicator" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' : ''}${loc.name}</div>
         <div class="city-list-time">${timeStr}</div>
         <div class="city-list-condition">${current ? describeWeather(current.weatherCode) : ''}</div>
       </div>
@@ -152,13 +204,39 @@ function renderCityList() {
         <div class="city-list-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
         <div class="city-list-highlow">${today ? `H:${Math.round(today.tempMax)}° L:${Math.round(today.tempMin)}°` : ''}</div>
       </div>
-      <button class="city-list-remove" type="button" title="Odstranit">×</button>
+      <div class="city-list-actions">
+        <button class="city-list-move city-list-move-up" type="button" title="Posunout nahoru" ${index === 0 ? 'disabled' : ''}>&#9650;</button>
+        <button class="city-list-move city-list-move-down" type="button" title="Posunout dolů" ${index === locations.length - 1 ? 'disabled' : ''}>&#9660;</button>
+        <button class="city-list-remove" type="button" title="Odstranit">×</button>
+      </div>
     `;
 
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.city-list-remove')) return;
+      if (e.target.closest('.city-list-actions')) return;
       closeSearchOverlay();
       scrollToPage(index);
+    });
+
+    card.querySelector('.city-list-move-up').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (index === 0) return;
+      [locations[index - 1], locations[index]] = [locations[index], locations[index - 1]];
+      saveLocations();
+      if (currentPage === index) currentPage = index - 1;
+      else if (currentPage === index - 1) currentPage = index;
+      await updateAllLocations();
+      renderCityList();
+    });
+
+    card.querySelector('.city-list-move-down').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (index === locations.length - 1) return;
+      [locations[index], locations[index + 1]] = [locations[index + 1], locations[index]];
+      saveLocations();
+      if (currentPage === index) currentPage = index + 1;
+      else if (currentPage === index + 1) currentPage = index;
+      await updateAllLocations();
+      renderCityList();
     });
 
     card.querySelector('.city-list-remove').addEventListener('click', async (e) => {
@@ -193,9 +271,9 @@ function renderDots() {
   const container = document.getElementById('page-dots');
   container.innerHTML = '';
 
-  locations.forEach((_, i) => {
+  locations.forEach((loc, i) => {
     const dot = document.createElement('div');
-    dot.className = `page-dot${i === currentPage ? ' active' : ''}`;
+    dot.className = `page-dot${i === currentPage ? ' active' : ''}${loc.isGPS ? ' loc-dot' : ''}`;
     dot.addEventListener('click', () => scrollToPage(i));
     container.appendChild(dot);
   });
@@ -237,34 +315,50 @@ async function geocodeCity(name) {
 
 async function fetchWeather(loc) {
   const { latitude, longitude } = loc;
-  const url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,apparent_temperature,precipitation_probability,weathercode,relative_humidity_2m,windspeed_10m&forecast_hours=48&model=icon_d2&timezone=Europe%2FPrague`;
+  const params = 'hourly=temperature_2m,apparent_temperature,precipitation_probability,weathercode,relative_humidity_2m,windspeed_10m&timezone=Europe%2FPrague';
+  const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&${params}&forecast_hours=48&model=icon_d2`;
+  const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&${params}&forecast_hours=120&model=icon_eu`;
 
   try {
-    const resp = await fetch(url);
-    const data = await resp.json();
+    const [d2Resp, euResp] = await Promise.all([fetch(d2Url), fetch(euUrl)]);
+    const [d2Data, euData] = await Promise.all([d2Resp.json(), euResp.json()]);
 
-    const time = data.hourly?.time || [];
-    const temperatures = data.hourly?.temperature_2m || [];
-    const apparent = data.hourly?.apparent_temperature || [];
-    const precipProb = data.hourly?.precipitation_probability || [];
-    const weathercode = data.hourly?.weathercode || [];
-    const humidity = data.hourly?.relative_humidity_2m || [];
-    const wind = data.hourly?.windspeed_10m || [];
+    const mapHourly = (data, count) => {
+      const time = data.hourly?.time || [];
+      return time.slice(0, count).map((hour, i) => ({
+        time: hour,
+        temp: data.hourly.temperature_2m[i],
+        apparent: data.hourly.apparent_temperature[i],
+        precipProb: data.hourly.precipitation_probability[i] || 0,
+        weatherCode: data.hourly.weathercode[i],
+        humidity: data.hourly.relative_humidity_2m[i],
+        wind: data.hourly.windspeed_10m[i]
+      }));
+    };
 
-    const hourly = time.slice(0, 48).map((hour, index) => ({
-      time: hour,
-      temp: temperatures[index],
-      apparent: apparent[index],
-      precipProb: precipProb[index] || 0,
-      weatherCode: weathercode[index],
-      humidity: humidity[index],
-      wind: wind[index]
-    }));
+    const d2Hourly = mapHourly(d2Data, 48);
 
-    const current = hourly[0] || null;
-    const daily = buildDailyForecast(hourly);
+    const d2EndTime = d2Hourly.length > 0 ? d2Hourly[d2Hourly.length - 1].time : null;
+    const euTime = euData.hourly?.time || [];
+    const euHourly = [];
+    for (let i = 0; i < euTime.length; i++) {
+      if (d2EndTime && euTime[i] <= d2EndTime) continue;
+      euHourly.push({
+        time: euTime[i],
+        temp: euData.hourly.temperature_2m[i],
+        apparent: euData.hourly.apparent_temperature[i],
+        precipProb: euData.hourly.precipitation_probability[i] || 0,
+        weatherCode: euData.hourly.weathercode[i],
+        humidity: euData.hourly.relative_humidity_2m[i],
+        wind: euData.hourly.windspeed_10m[i]
+      });
+    }
 
-    return { current, hourly, daily };
+    const allHourly = [...d2Hourly, ...euHourly];
+    const current = d2Hourly[0] || null;
+    const daily = buildDailyForecast(allHourly);
+
+    return { current, hourly: d2Hourly, daily };
   } catch (error) {
     console.error('Chyba při načítání předpovědi:', error);
     return { current: null, hourly: [], daily: [] };
@@ -317,7 +411,7 @@ function createCityPage(loc, weather) {
   const header = document.createElement('div');
   header.className = 'city-header';
   header.innerHTML = `
-    <div class="city-name">${loc.name}</div>
+    <div class="city-name">${loc.isGPS ? '<svg class="gps-header-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' : ''}${loc.name}</div>
     <div class="city-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
     <div class="city-condition">${current ? describeWeather(current.weatherCode) : 'Data nejsou dostupná'}</div>
     <div class="city-highlow">${today ? `H:${Math.round(today.tempMax)}°  L:${Math.round(today.tempMin)}°` : ''}</div>
@@ -358,7 +452,7 @@ function createCityPage(loc, weather) {
   dailyPanel.innerHTML = `
     <div class="panel-label">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Předpověď na 2 dny
+      Předpověď na 5 dní
     </div>
     <div class="daily-list"></div>
   `;
@@ -441,7 +535,7 @@ function createCityPage(loc, weather) {
   footer.style.marginBottom = '20px';
   footer.innerHTML = `
     <div style="font-size:0.78rem;color:var(--text-secondary)">
-      Model ICON D2 · Open-Meteo
+      ICON D2 + ICON EU · Open-Meteo
     </div>
   `;
   page.appendChild(footer);
@@ -475,7 +569,7 @@ function buildDailyForecast(hourly) {
 
   return Object.keys(grouped)
     .sort()
-    .slice(0, 2)
+    .slice(0, 5)
     .map((date) => {
       const info = grouped[date];
       const tempMax = Math.max(...info.temps);
