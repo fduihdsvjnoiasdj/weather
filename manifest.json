@@ -5,8 +5,8 @@
   "lang": "cs",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#1E1E2A",
-  "theme_color": "#1E1E2A",
+  "background_color": "#1a2a4a",
+  "theme_color": "#1a2a4a",
   "icons": [
     {
       "src": "icons/app-icon.svg",

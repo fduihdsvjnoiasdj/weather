@@ -14,11 +14,15 @@ function registerServiceWorker() {
 const DEFAULT_CITIES = [{ name: 'Roudnice nad Labem' }];
 const LOCATIONS_KEY = 'weatherAppLocations';
 let locations = [];
+let weatherCache = new Map();
+let currentPage = 0;
 
 async function initApp() {
   locations = await loadLocations();
   await updateAllLocations();
   setupSearch();
+  setupBottomBar();
+  setupPageDots();
 }
 
 async function loadLocations() {
@@ -50,6 +54,8 @@ async function loadLocations() {
 function saveLocations() {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
 }
+
+/* ---- Search ---- */
 
 function setupSearch() {
   const searchInput = document.getElementById('search-input');
@@ -88,11 +94,13 @@ function setupSearch() {
               longitude: res.longitude
             });
             saveLocations();
-            await updateAllLocations();
           }
 
           searchInput.value = '';
           resultsContainer.innerHTML = '';
+          closeSearchOverlay();
+          currentPage = 0;
+          await updateAllLocations();
         });
 
         resultsContainer.appendChild(button);
@@ -100,6 +108,114 @@ function setupSearch() {
     }, 250);
   });
 }
+
+function setupBottomBar() {
+  document.getElementById('btn-list').addEventListener('click', openSearchOverlay);
+}
+
+function openSearchOverlay() {
+  const overlay = document.getElementById('search-overlay');
+  overlay.classList.remove('hidden');
+  renderCityList();
+  setTimeout(() => document.getElementById('search-input').focus(), 100);
+}
+
+function closeSearchOverlay() {
+  const overlay = document.getElementById('search-overlay');
+  overlay.classList.add('hidden');
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-results').innerHTML = '';
+}
+
+function renderCityList() {
+  const container = document.getElementById('city-list');
+  container.innerHTML = '';
+
+  locations.forEach((loc, index) => {
+    const cached = weatherCache.get(locKey(loc));
+    const card = document.createElement('div');
+    card.className = 'city-list-card';
+
+    const current = cached?.current;
+    const today = cached?.daily?.[0];
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+
+    card.innerHTML = `
+      <div class="city-list-left">
+        <div class="city-list-name">${loc.name}</div>
+        <div class="city-list-time">${timeStr}</div>
+        <div class="city-list-condition">${current ? describeWeather(current.weatherCode) : ''}</div>
+      </div>
+      <div class="city-list-right">
+        <div class="city-list-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
+        <div class="city-list-highlow">${today ? `H:${Math.round(today.tempMax)}° L:${Math.round(today.tempMin)}°` : ''}</div>
+      </div>
+      <button class="city-list-remove" type="button" title="Odstranit">×</button>
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.city-list-remove')) return;
+      closeSearchOverlay();
+      scrollToPage(index);
+    });
+
+    card.querySelector('.city-list-remove').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      locations = locations.filter((item) => item !== loc);
+      saveLocations();
+      weatherCache.delete(locKey(loc));
+      if (currentPage >= locations.length) currentPage = Math.max(0, locations.length - 1);
+      await updateAllLocations();
+      renderCityList();
+    });
+
+    container.appendChild(card);
+  });
+}
+
+/* ---- Page Dots ---- */
+
+function setupPageDots() {
+  const pagesEl = document.getElementById('weather-pages');
+  pagesEl.addEventListener('scroll', () => {
+    const pageWidth = pagesEl.offsetWidth;
+    const newPage = Math.round(pagesEl.scrollLeft / pageWidth);
+    if (newPage !== currentPage) {
+      currentPage = newPage;
+      updateDots();
+    }
+  });
+}
+
+function renderDots() {
+  const container = document.getElementById('page-dots');
+  container.innerHTML = '';
+
+  locations.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = `page-dot${i === currentPage ? ' active' : ''}`;
+    dot.addEventListener('click', () => scrollToPage(i));
+    container.appendChild(dot);
+  });
+}
+
+function updateDots() {
+  const dots = document.querySelectorAll('.page-dot');
+  dots.forEach((dot, i) => {
+    dot.classList.toggle('active', i === currentPage);
+  });
+}
+
+function scrollToPage(index) {
+  const pagesEl = document.getElementById('weather-pages');
+  pagesEl.scrollTo({ left: index * pagesEl.offsetWidth, behavior: 'smooth' });
+  currentPage = index;
+  updateDots();
+}
+
+/* ---- API ---- */
 
 async function geocodeSearch(query) {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=cs`;
@@ -117,17 +233,6 @@ async function geocodeSearch(query) {
 async function geocodeCity(name) {
   const results = await geocodeSearch(name);
   return results[0];
-}
-
-async function updateAllLocations() {
-  const container = document.getElementById('locations-container');
-  container.innerHTML = '';
-
-  for (const loc of locations) {
-    if (!loc.latitude || !loc.longitude) continue;
-    const weather = await fetchWeather(loc);
-    container.appendChild(createLocationCard(loc, weather));
-  }
 }
 
 async function fetchWeather(loc) {
@@ -166,17 +271,201 @@ async function fetchWeather(loc) {
   }
 }
 
+function locKey(loc) {
+  return `${loc.latitude},${loc.longitude}`;
+}
+
+/* ---- Update All ---- */
+
+async function updateAllLocations() {
+  const pagesEl = document.getElementById('weather-pages');
+  pagesEl.innerHTML = '';
+
+  if (locations.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'city-page empty-state';
+    empty.innerHTML = '<div>🌤️</div><p>Žádná města.<br>Klepněte na ☰ a přidejte město.</p>';
+    pagesEl.appendChild(empty);
+    renderDots();
+    return;
+  }
+
+  for (const loc of locations) {
+    if (!loc.latitude || !loc.longitude) continue;
+    const weather = await fetchWeather(loc);
+    weatherCache.set(locKey(loc), weather);
+    pagesEl.appendChild(createCityPage(loc, weather));
+  }
+
+  renderDots();
+  scrollToPage(currentPage);
+}
+
+/* ---- Build UI ---- */
+
+function createCityPage(loc, weather) {
+  const page = document.createElement('div');
+  page.className = 'city-page';
+
+  const current = weather.current;
+  const today = weather.daily[0];
+
+  // Add weather-based background class
+  page.classList.add(getWeatherBgClass(current?.weatherCode));
+
+  // City header
+  const header = document.createElement('div');
+  header.className = 'city-header';
+  header.innerHTML = `
+    <div class="city-name">${loc.name}</div>
+    <div class="city-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
+    <div class="city-condition">${current ? describeWeather(current.weatherCode) : 'Data nejsou dostupná'}</div>
+    <div class="city-highlow">${today ? `H:${Math.round(today.tempMax)}°  L:${Math.round(today.tempMin)}°` : ''}</div>
+  `;
+  page.appendChild(header);
+
+  // Hourly panel
+  const hourlyPanel = document.createElement('div');
+  hourlyPanel.className = 'glass-panel';
+  hourlyPanel.innerHTML = `
+    <div class="panel-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      48hodinová předpověď
+    </div>
+    <div class="panel-separator"></div>
+    <div class="hourly-strip"></div>
+  `;
+
+  const strip = hourlyPanel.querySelector('.hourly-strip');
+  weather.hourly.forEach((hour, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'hour-item';
+    const timeLabel = i === 0 ? 'Teď' : formatHour(hour.time);
+    const precipHtml = hour.precipProb > 0 ? `<span class="hour-precip">${hour.precipProb}%</span>` : '<span class="hour-precip"></span>';
+    slot.innerHTML = `
+      <span class="hour-time">${timeLabel}</span>
+      <span class="hour-icon">${getWeatherIcon(hour.weatherCode)}</span>
+      ${precipHtml}
+      <span class="hour-temp">${Math.round(hour.temp)}°</span>
+    `;
+    strip.appendChild(slot);
+  });
+  page.appendChild(hourlyPanel);
+
+  // Daily panel
+  const dailyPanel = document.createElement('div');
+  dailyPanel.className = 'glass-panel';
+  dailyPanel.innerHTML = `
+    <div class="panel-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Předpověď na 2 dny
+    </div>
+    <div class="daily-list"></div>
+  `;
+
+  const minTemp = Math.min(...weather.daily.map((d) => d.tempMin));
+  const maxTemp = Math.max(...weather.daily.map((d) => d.tempMax));
+  const dailyList = dailyPanel.querySelector('.daily-list');
+
+  weather.daily.forEach((day, index) => {
+    const row = document.createElement('div');
+    row.className = 'daily-row';
+    row.innerHTML = `
+      <span class="day-name">${index === 0 ? 'Dnes' : formatDay(day.date)}</span>
+      <span class="day-icon">${getWeatherIcon(day.weatherCode)}</span>
+      <span class="day-min">${Math.round(day.tempMin)}°</span>
+      <div class="temp-range">${buildRange(day.tempMin, day.tempMax, minTemp, maxTemp)}</div>
+      <span class="day-max">${Math.round(day.tempMax)}°</span>
+    `;
+    dailyList.appendChild(row);
+  });
+  page.appendChild(dailyPanel);
+
+  // Details grid (Apple Weather style cards)
+  const grid = document.createElement('div');
+  grid.className = 'details-grid';
+
+  // Feels Like
+  grid.innerHTML += `
+    <div class="detail-card">
+      <div class="detail-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+        Pocitově
+      </div>
+      <div class="detail-value">${current ? `${Math.round(current.apparent)}°` : '—'}</div>
+      <div class="detail-note">${current ? getFeelsLikeNote(current.temp, current.apparent) : ''}</div>
+    </div>
+  `;
+
+  // Humidity
+  grid.innerHTML += `
+    <div class="detail-card">
+      <div class="detail-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        Vlhkost
+      </div>
+      <div class="detail-value">${current ? `${current.humidity}%` : '—'}</div>
+      <div class="detail-note">${current ? getHumidityNote(current.humidity) : ''}</div>
+    </div>
+  `;
+
+  // Wind
+  grid.innerHTML += `
+    <div class="detail-card">
+      <div class="detail-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+        Vítr
+      </div>
+      <div class="detail-value">${current ? `${Math.round(current.wind)}` : '—'}<span style="font-size:0.9rem;font-weight:400"> km/h</span></div>
+    </div>
+  `;
+
+  // Precipitation
+  grid.innerHTML += `
+    <div class="detail-card">
+      <div class="detail-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+        Srážky
+      </div>
+      <div class="detail-value">${current ? `${current.precipProb}%` : '—'}</div>
+      <div class="detail-note">Pravděpodobnost srážek</div>
+    </div>
+  `;
+
+  page.appendChild(grid);
+
+  // Model info footer
+  const footer = document.createElement('div');
+  footer.className = 'glass-panel';
+  footer.style.textAlign = 'center';
+  footer.style.marginBottom = '20px';
+  footer.innerHTML = `
+    <div style="font-size:0.78rem;color:var(--text-secondary)">
+      Model ICON D2 · Open-Meteo
+    </div>
+  `;
+  page.appendChild(footer);
+
+  return page;
+}
+
+/* ---- Helpers ---- */
+
+function buildRange(min, max, globalMin, globalMax) {
+  const total = Math.max(globalMax - globalMin, 1);
+  const left = ((min - globalMin) / total) * 100;
+  const width = ((max - min) / total) * 100;
+
+  return `<span class="range-fill" style="left:${left}%;width:${Math.max(width, 8)}%"></span>`;
+}
+
 function buildDailyForecast(hourly) {
   const grouped = {};
 
   hourly.forEach((hour) => {
     const date = hour.time.split('T')[0];
     if (!grouped[date]) {
-      grouped[date] = {
-        temps: [],
-        codes: [],
-        precip: []
-      };
+      grouped[date] = { temps: [], codes: [], precip: [] };
     }
 
     grouped[date].temps.push(hour.temp);
@@ -203,95 +492,6 @@ function buildDailyForecast(hourly) {
 
       return { date, tempMax, tempMin, avgPrecip, weatherCode };
     });
-}
-
-function createLocationCard(loc, weather) {
-  const card = document.createElement('article');
-  card.className = 'location-card';
-
-  const current = weather.current;
-  const today = weather.daily[0];
-
-  card.innerHTML = `
-    <header class="hero">
-      <div>
-        <h2>${loc.name}</h2>
-        <p class="condition">${current ? describeWeather(current.weatherCode) : 'Data nejsou dostupná'}</p>
-      </div>
-      <button class="remove-btn" type="button" title="Odstranit město">×</button>
-    </header>
-    <section class="hero-temp">
-      <div class="temperature">${current ? `${Math.round(current.temp)}°` : '—'}</div>
-      <div class="meta">
-        <span class="meta-item">${current ? `Pocitově ${Math.round(current.apparent)}°` : ''}</span>
-        <span class="meta-item">${today ? `H: ${Math.round(today.tempMax)}°  L: ${Math.round(today.tempMin)}°` : ''}</span>
-      </div>
-      <div class="weather-emoji">${current ? getWeatherIcon(current.weatherCode) : '☁️'}</div>
-    </section>
-    <section class="panel">
-      <h3>48hodinová předpověď</h3>
-      <div class="hourly-strip"></div>
-    </section>
-    <section class="panel">
-      <h3>Denní přehled (2 dny)</h3>
-      <div class="daily-list"></div>
-    </section>
-    <section class="panel details-grid">
-      <div><span>Srážky</span><strong>${current ? `${current.precipProb}%` : '—'}</strong></div>
-      <div><span>Vlhkost</span><strong>${current ? `${current.humidity}%` : '—'}</strong></div>
-      <div><span>Vítr</span><strong>${current ? `${Math.round(current.wind)} km/h` : '—'}</strong></div>
-      <div><span>Model</span><strong>ICON D2</strong></div>
-    </section>
-  `;
-
-  card.querySelector('.remove-btn').addEventListener('click', () => {
-    locations = locations.filter((item) => item !== loc);
-    saveLocations();
-    updateAllLocations();
-  });
-
-  const hourlyStrip = card.querySelector('.hourly-strip');
-  weather.hourly.forEach((hour) => {
-    const slot = document.createElement('div');
-    slot.className = 'hour-item';
-    slot.innerHTML = `
-      <span class="hour-time">${formatHour(hour.time)}</span>
-      <span class="hour-icon">${getWeatherIcon(hour.weatherCode)}</span>
-      <span class="hour-temp">${Math.round(hour.temp)}°</span>
-      <span class="hour-rain">${hour.precipProb}%</span>
-    `;
-    hourlyStrip.appendChild(slot);
-  });
-
-  const minTemp = Math.min(...weather.daily.map((day) => day.tempMin));
-  const maxTemp = Math.max(...weather.daily.map((day) => day.tempMax));
-  const dailyList = card.querySelector('.daily-list');
-  weather.daily.forEach((day, index) => {
-    const row = document.createElement('div');
-    row.className = 'daily-row';
-    row.innerHTML = `
-      <span class="day-name">${index === 0 ? 'Dnes' : formatDay(day.date)}</span>
-      <span class="day-icon">${getWeatherIcon(day.weatherCode)}</span>
-      <span class="day-rain">${day.avgPrecip}%</span>
-      <span class="day-min">${Math.round(day.tempMin)}°</span>
-      <div class="temp-range">${buildRange(day.tempMin, day.tempMax, minTemp, maxTemp)}</div>
-      <span class="day-max">${Math.round(day.tempMax)}°</span>
-    `;
-    dailyList.appendChild(row);
-  });
-
-  return card;
-}
-
-function buildRange(min, max, globalMin, globalMax) {
-  const total = Math.max(globalMax - globalMin, 1);
-  const left = ((min - globalMin) / total) * 100;
-  const width = ((max - min) / total) * 100;
-
-  return `
-    <span class="range-track"></span>
-    <span class="range-fill" style="left:${left}%;width:${Math.max(width, 8)}%"></span>
-  `;
 }
 
 function formatHour(hour) {
@@ -326,6 +526,36 @@ function getWeatherIcon(code) {
   if ([71, 73, 75, 77, 85, 86].includes(code)) return '❄️';
   if ([95, 96, 99].includes(code)) return '⛈️';
   return '☁️';
+}
+
+function getWeatherBgClass(code) {
+  if (code === undefined || code === null) return 'weather-cloudy';
+
+  // Check if it's nighttime (rough heuristic)
+  const hour = new Date().getHours();
+  const isNight = hour < 6 || hour > 20;
+
+  if (isNight) return 'weather-night';
+  if (code === 0) return 'weather-clear';
+  if ([1, 2, 3].includes(code)) return 'weather-clear';
+  if ([45, 48].includes(code)) return 'weather-fog';
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'weather-rain';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'weather-snow';
+  if ([95, 96, 99].includes(code)) return 'weather-storm';
+  return 'weather-cloudy';
+}
+
+function getFeelsLikeNote(actual, apparent) {
+  const diff = Math.round(apparent) - Math.round(actual);
+  if (Math.abs(diff) <= 1) return 'Podobné jako skutečná teplota.';
+  if (diff < 0) return 'Vítr snižuje pocitovou teplotu.';
+  return 'Vlhkost zvyšuje pocitovou teplotu.';
+}
+
+function getHumidityNote(humidity) {
+  if (humidity >= 70) return 'Vzduch je vlhký.';
+  if (humidity <= 30) return 'Vzduch je suchý.';
+  return 'Vlhkost je příjemná.';
 }
 
 if (typeof module !== 'undefined') {
