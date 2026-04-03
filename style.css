@@ -1,15 +1,14 @@
 /* ========================================================
-   iPhone Weather App – Redesign
+   Apple Weather App – Redesign (iOS 17/18 Style)
    ======================================================== */
 
 :root {
   --text: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-secondary: rgba(255, 255, 255, 0.6);
   --glass: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.2);
-  --glass-strong: rgba(255, 255, 255, 0.18);
-  --separator: rgba(255, 255, 255, 0.25);
-  --bar-bg: rgba(20, 30, 60, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --separator: rgba(255, 255, 255, 0.2);
+  --bar-bg: rgba(20, 30, 60, 0.7);
 }
 
 * {
@@ -30,7 +29,7 @@ body {
   background: #1a2a4a;
 }
 
-/* ---- Weather Pages (full-screen swipe) ---- */
+/* ---- Weather Pages (full-screen horizontal swipe) ---- */
 
 .weather-pages {
   height: 100%;
@@ -56,7 +55,7 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: calc(env(safe-area-inset-top, 44px) + 10px) 16px calc(80px + env(safe-area-inset-bottom, 20px));
+  padding: calc(env(safe-area-inset-top, 44px) + 12px) 16px calc(72px + env(safe-area-inset-bottom, 20px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -68,61 +67,70 @@ body {
   display: none;
 }
 
-/* Dynamic background gradients per weather condition */
+/* ---- Dynamic backgrounds (Apple Weather style) ---- */
+
 .city-page.weather-clear {
-  background: linear-gradient(180deg, #4a90d9 0%, #74b9ff 35%, #a8d8ea 100%);
+  background: linear-gradient(180deg, #1B6EF3 0%, #47A4F5 40%, #87CEEB 100%);
+}
+
+.city-page.weather-partly {
+  background: linear-gradient(180deg, #3A7BD5 0%, #6BA4D9 35%, #92B8D8 100%);
 }
 
 .city-page.weather-cloudy {
-  background: linear-gradient(180deg, #57728a 0%, #7f99ad 40%, #a4b8c8 100%);
+  background: linear-gradient(180deg, #5A6D80 0%, #7B8D9E 40%, #96A5B2 100%);
 }
 
 .city-page.weather-rain {
-  background: linear-gradient(180deg, #3d5a73 0%, #5a7a8f 40%, #7a97aa 100%);
+  background: linear-gradient(180deg, #3B4D61 0%, #546D82 35%, #6D8499 100%);
 }
 
 .city-page.weather-snow {
-  background: linear-gradient(180deg, #6b7d8e 0%, #8fa4b5 40%, #b8c9d6 100%);
+  background: linear-gradient(180deg, #7B8FA0 0%, #95A7B5 40%, #B4C4CE 100%);
 }
 
 .city-page.weather-fog {
-  background: linear-gradient(180deg, #6d7d8a 0%, #8a9aa6 40%, #a8b5bf 100%);
+  background: linear-gradient(180deg, #717D87 0%, #8C969E 40%, #A5ADB4 100%);
 }
 
 .city-page.weather-storm {
-  background: linear-gradient(180deg, #2c3e50 0%, #4a5d6e 40%, #6b7f8e 100%);
+  background: linear-gradient(180deg, #1E2D3D 0%, #374B5C 35%, #4E6374 100%);
 }
 
 .city-page.weather-night {
-  background: linear-gradient(180deg, #0f1923 0%, #1a2a3e 35%, #2a3f55 100%);
+  background: linear-gradient(180deg, #0B1426 0%, #162038 35%, #1F3050 100%);
 }
 
-/* ---- City Header (top centered) ---- */
+/* ---- City Header ---- */
 
 .city-header {
   text-align: center;
-  padding-top: 10px;
+  padding-top: 6px;
   width: 100%;
   flex-shrink: 0;
 }
 
 .city-name {
-  font-size: 2.1rem;
+  font-size: 2rem;
   font-weight: 400;
   letter-spacing: 0.01em;
   line-height: 1.15;
 }
 
+.gps-badge {
+  font-size: 0.85em;
+}
+
 .city-temp {
-  font-size: 6rem;
-  font-weight: 200;
+  font-size: 5.8rem;
+  font-weight: 100;
   line-height: 1;
-  letter-spacing: -0.04em;
-  margin-top: -2px;
+  letter-spacing: -0.05em;
+  margin-top: -4px;
 }
 
 .city-condition {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: var(--text);
   opacity: 0.9;
@@ -130,11 +138,12 @@ body {
 }
 
 .city-highlow {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: var(--text);
   opacity: 0.9;
   margin-top: 2px;
+  margin-bottom: 6px;
 }
 
 /* ---- Glass Panel (shared) ---- */
@@ -142,23 +151,22 @@ body {
 .glass-panel {
   width: 100%;
   max-width: 420px;
-  margin-top: 12px;
+  margin-top: 10px;
   border-radius: 15px;
   background: var(--glass);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 0.5px solid var(--glass-border);
-  padding: 12px 14px;
+  padding: 10px 14px;
   flex-shrink: 0;
 }
 
 .panel-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
-  margin-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -167,7 +175,15 @@ body {
 .panel-label svg {
   width: 13px;
   height: 13px;
-  opacity: 0.7;
+  opacity: 0.65;
+}
+
+.panel-summary {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text);
+  margin: 4px 0 0 0;
+  line-height: 1.35;
 }
 
 .panel-separator {
@@ -195,20 +211,39 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  min-width: 60px;
+  min-width: 58px;
   padding: 4px 0;
   font-size: 1rem;
+  position: relative;
+}
+
+.hour-item + .hour-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 0.5px;
+  background: var(--separator);
 }
 
 .hour-time {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .hour-icon {
-  font-size: 1.4rem;
-  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.w-icon {
+  width: 28px;
+  height: 28px;
 }
 
 .hour-temp {
@@ -217,9 +252,14 @@ body {
 }
 
 .hour-precip {
-  font-size: 0.7rem;
-  color: #74c0fc;
-  min-height: 14px;
+  font-size: 0.68rem;
+  color: #64D2FF;
+  font-weight: 600;
+  min-height: 12px;
+}
+
+.hour-precip-spacer {
+  min-height: 12px;
 }
 
 /* ---- Daily Forecast ---- */
@@ -231,10 +271,10 @@ body {
 
 .daily-row {
   display: grid;
-  grid-template-columns: 46px 28px 38px 1fr 38px;
+  grid-template-columns: 38px 30px 34px 1fr 34px;
   align-items: center;
-  gap: 8px;
-  padding: 7px 0;
+  gap: 6px;
+  padding: 8px 0;
   font-size: 1rem;
 }
 
@@ -244,32 +284,40 @@ body {
 
 .day-name {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
 }
 
 .day-icon {
-  font-size: 1.2rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-icon .w-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .day-min {
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   text-align: right;
+  font-weight: 500;
 }
 
 .day-max {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   text-align: right;
 }
 
+/* Temperature range bar with color gradient */
 .temp-range {
   position: relative;
-  height: 4px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: visible;
 }
 
 .range-fill {
@@ -277,10 +325,22 @@ body {
   top: 0;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #64d2ff, #ffd60a);
+  min-width: 10%;
 }
 
-/* ---- Details Grid ---- */
+/* Current temperature dot on today's row */
+.temp-dot {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: white;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 3px rgba(0,0,0,0.3);
+}
+
+/* ---- Details Grid (Apple-style 2x2+) ---- */
 
 .details-grid {
   display: grid;
@@ -288,24 +348,26 @@ body {
   gap: 10px;
   width: 100%;
   max-width: 420px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .detail-card {
   border-radius: 15px;
   background: var(--glass);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 0.5px solid var(--glass-border);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 100px;
+  gap: 2px;
+  min-height: 150px;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
 }
 
 .detail-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -318,21 +380,126 @@ body {
 .detail-label svg {
   width: 13px;
   height: 13px;
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 .detail-value {
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 300;
   letter-spacing: -0.02em;
-  margin-top: auto;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.detail-unit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.detail-sub {
+  font-size: 0.78rem;
+  color: var(--text);
+  opacity: 0.75;
+  line-height: 1.2;
 }
 
 .detail-note {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--text);
-  opacity: 0.85;
+  opacity: 0.7;
   line-height: 1.3;
+  margin-top: auto;
+}
+
+/* ---- UV Gauge ---- */
+
+.uv-gauge {
+  margin: 8px 0 4px;
+}
+
+.uv-gauge-track {
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #30D158, #FFD60A, #FF9F0A, #FF453A, #AF52DE);
+  position: relative;
+}
+
+.uv-gauge-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.uv-gauge-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+}
+
+/* ---- Sun Arc ---- */
+
+.sun-arc {
+  margin: 4px 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.sun-arc-svg {
+  width: 100%;
+  height: auto;
+}
+
+.sun-arc-placeholder {
+  height: 40px;
+}
+
+/* ---- Wind Compass ---- */
+
+.wind-compass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+}
+
+.compass-svg {
+  width: 72px;
+  height: 72px;
+}
+
+.compass-speed {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.compass-gusts {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+/* ---- Model Footer ---- */
+
+.model-footer {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.footer-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 2px 0;
 }
 
 /* ---- Bottom Bar (iOS-style) ---- */
@@ -345,11 +512,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px calc(env(safe-area-inset-bottom, 8px) + 8px);
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 8px) + 6px);
   background: var(--bar-bg);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
-  border-top: 0.5px solid rgba(255, 255, 255, 0.15);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.12);
   z-index: 100;
 }
 
@@ -379,11 +546,12 @@ body {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.35);
   transition: background 0.2s, transform 0.2s;
+  cursor: pointer;
 }
 
 .page-dot.active {
   background: #ffffff;
-  transform: scale(1.15);
+  transform: scale(1.2);
 }
 
 .page-dot.loc-dot {
@@ -413,9 +581,9 @@ body {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   transition: opacity 0.25s, visibility 0.25s;
@@ -466,7 +634,7 @@ body {
 }
 
 .search-bar input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .search-results {
@@ -494,9 +662,10 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* City list in search overlay */
+/* ---- City List in Search Overlay ---- */
+
 .city-list {
-  margin-top: 6px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -505,7 +674,6 @@ body {
 .city-list-card {
   border-radius: 16px;
   padding: 14px 16px;
-  background: linear-gradient(135deg, rgba(74, 144, 217, 0.6), rgba(100, 160, 220, 0.3));
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
   border: 0.5px solid var(--glass-border);
@@ -515,6 +683,39 @@ body {
   align-items: flex-start;
   transition: transform 0.15s, opacity 0.15s;
   position: relative;
+}
+
+/* Weather-based city list card backgrounds */
+.city-list-card.weather-clear {
+  background: linear-gradient(135deg, rgba(27, 110, 243, 0.6), rgba(71, 164, 245, 0.35));
+}
+
+.city-list-card.weather-partly {
+  background: linear-gradient(135deg, rgba(58, 123, 213, 0.6), rgba(107, 164, 217, 0.35));
+}
+
+.city-list-card.weather-cloudy {
+  background: linear-gradient(135deg, rgba(90, 109, 128, 0.6), rgba(123, 141, 158, 0.35));
+}
+
+.city-list-card.weather-rain {
+  background: linear-gradient(135deg, rgba(59, 77, 97, 0.6), rgba(84, 109, 130, 0.35));
+}
+
+.city-list-card.weather-snow {
+  background: linear-gradient(135deg, rgba(123, 143, 160, 0.6), rgba(149, 167, 181, 0.35));
+}
+
+.city-list-card.weather-fog {
+  background: linear-gradient(135deg, rgba(113, 125, 135, 0.6), rgba(140, 150, 158, 0.35));
+}
+
+.city-list-card.weather-storm {
+  background: linear-gradient(135deg, rgba(30, 45, 61, 0.7), rgba(55, 75, 92, 0.4));
+}
+
+.city-list-card.weather-night {
+  background: linear-gradient(135deg, rgba(11, 20, 38, 0.7), rgba(22, 32, 56, 0.4));
 }
 
 .city-list-card:active {
@@ -534,14 +735,14 @@ body {
 }
 
 .city-list-time {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
 .city-list-condition {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .city-list-right {
@@ -559,7 +760,7 @@ body {
 }
 
 .city-list-highlow {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
   margin-top: 2px;
 }
@@ -627,22 +828,6 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* ---- GPS indicators ---- */
-
-.gps-indicator {
-  display: inline-flex;
-  vertical-align: middle;
-  margin-right: 4px;
-  opacity: 0.8;
-}
-
-.gps-header-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 2px;
-  opacity: 0.8;
-}
-
 /* ---- Empty state ---- */
 
 .empty-state {
@@ -655,7 +840,7 @@ body {
   color: var(--text-secondary);
   padding: 40px;
   font-size: 1.1rem;
-  background: linear-gradient(180deg, #4a6d94 0%, #2a4060 100%);
+  background: linear-gradient(180deg, #3A7BD5 0%, #1F3050 100%);
 }
 
 .empty-state p {
@@ -666,20 +851,26 @@ body {
 
 @media (max-width: 600px) {
   .city-temp {
-    font-size: 5.2rem;
+    font-size: 5rem;
   }
 
   .daily-row {
-    grid-template-columns: 42px 26px 34px 1fr 34px;
-    font-size: 0.92rem;
+    grid-template-columns: 36px 28px 32px 1fr 32px;
+    font-size: 0.9rem;
+    gap: 5px;
   }
 
   .detail-card {
-    min-height: 90px;
+    min-height: 130px;
   }
 
   .detail-value {
-    font-size: 1.5rem;
+    font-size: 1.7rem;
+  }
+
+  .compass-svg {
+    width: 60px;
+    height: 60px;
   }
 }
 
