@@ -918,6 +918,644 @@ function getHourlySummary(hourly) {
   return 'Podmínky na příštích 48 hodin.';
 }
 
+/* ============================================================
+   NOTIFICATION SYSTEM – Push subscription, overlay, rule builder
+   ============================================================ */
+
+const VAPID_PUBLIC_KEY = 'BJzsAIEa1fs0XMTL38zYoEl6pWhFQ-SFldAfHpY5yYf4LXiHk1T2XQrhvHfceCJZOOWHlfqtu7Kww4K64-EyFlI';
+const RULES_KEY = 'weatherAppRules';
+
+const PARAM_OPTIONS = [
+  { param: 'temperature_2m', label: 'Teplota', unit: '°C', min: -40, max: 50, step: 1, defaultOp: '>', defaultVal: 25 },
+  { param: 'apparent_temperature', label: 'Pocitová teplota', unit: '°C', min: -50, max: 55, step: 1, defaultOp: '>', defaultVal: 25 },
+  { param: 'precipitation_probability', label: 'Pravděp. srážek', unit: '%', min: 0, max: 100, step: 5, defaultOp: '>=', defaultVal: 50 },
+  { param: 'precipitation', label: 'Srážky', unit: 'mm', min: 0, max: 100, step: 0.5, defaultOp: '>', defaultVal: 1 },
+  { param: 'wind_speed_10m', label: 'Vítr', unit: 'km/h', min: 0, max: 200, step: 5, defaultOp: '>', defaultVal: 50 },
+  { param: 'wind_gusts_10m', label: 'Nárazy větru', unit: 'km/h', min: 0, max: 300, step: 5, defaultOp: '>', defaultVal: 70 },
+  { param: 'weather_code', label: 'Kód počasí', unit: '', min: 0, max: 99, step: 1, defaultOp: 'in', defaultVal: [0, 1, 2] },
+  { param: 'relative_humidity_2m', label: 'Vlhkost', unit: '%', min: 0, max: 100, step: 5, defaultOp: '>', defaultVal: 70 },
+  { param: 'visibility', label: 'Viditelnost', unit: 'km', min: 0, max: 100, step: 1, defaultOp: '<', defaultVal: 1 },
+  { param: 'surface_pressure', label: 'Tlak', unit: 'hPa', min: 900, max: 1100, step: 1, defaultOp: '<', defaultVal: 1000 }
+];
+
+const WEATHER_CODE_GROUPS = [
+  { codes: [0], label: 'Jasno' },
+  { codes: [1, 2], label: 'Polojasno' },
+  { codes: [3], label: 'Oblačno' },
+  { codes: [45, 48], label: 'Mlha' },
+  { codes: [51, 53, 55, 56, 57], label: 'Mrholení' },
+  { codes: [61, 63, 65, 66, 67, 80, 81, 82], label: 'Déšť' },
+  { codes: [71, 73, 75, 77, 85, 86], label: 'Sníh' },
+  { codes: [95, 96, 99], label: 'Bouřky' }
+];
+
+const OP_LABELS = { '>': '>', '<': '<', '>=': '≥', '<=': '≤', '==': '=', 'in': 'je' };
+
+const PRESETS = [
+  {
+    name: 'Déšť',
+    conditions: [{ param: 'precipitation_probability', op: '>=', value: 50 }],
+    logic: 'AND', timeHorizon: 2, consecutiveHours: null, cooldownMinutes: 180
+  },
+  {
+    name: 'Mráz',
+    conditions: [{ param: 'temperature_2m', op: '<', value: 0 }],
+    logic: 'AND', timeHorizon: 24, consecutiveHours: null, cooldownMinutes: 720
+  },
+  {
+    name: 'Silný vítr',
+    conditions: [{ param: 'wind_speed_10m', op: '>', value: 50 }],
+    logic: 'AND', timeHorizon: 12, consecutiveHours: null, cooldownMinutes: 360
+  },
+  {
+    name: 'Koupání',
+    conditions: [
+      { param: 'weather_code', op: 'in', value: [0, 1, 2] },
+      { param: 'temperature_2m', op: '>', value: 25 }
+    ],
+    logic: 'AND', timeHorizon: 24, consecutiveHours: 4, cooldownMinutes: 720
+  }
+];
+
+/* ---- Rules storage ---- */
+
+function getStoredRules() {
+  try {
+    return JSON.parse(localStorage.getItem(RULES_KEY)) || {};
+  } catch { return {}; }
+}
+
+function saveRules(rules) {
+  localStorage.setItem(RULES_KEY, JSON.stringify(rules));
+}
+
+function getRulesForLocation(loc) {
+  return getStoredRules()[locKey(loc)] || [];
+}
+
+function setRulesForLocation(loc, rules) {
+  const all = getStoredRules();
+  all[locKey(loc)] = rules;
+  saveRules(all);
+}
+
+/* ---- Push subscription ---- */
+
+let pushSubscription = null;
+
+async function subscribePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert('Push notifikace nejsou v tomto prohlížeči podporovány.');
+    return false;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return false;
+
+  const reg = await navigator.serviceWorker.ready;
+  const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  pushSubscription = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey
+  });
+  await syncSubscription();
+  return true;
+}
+
+async function unsubscribePush() {
+  if (pushSubscription) {
+    await fetch('/api/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: pushSubscription })
+    });
+    await pushSubscription.unsubscribe();
+    pushSubscription = null;
+  }
+}
+
+async function syncSubscription() {
+  if (!pushSubscription) return;
+  const allRules = getStoredRules();
+  const locs = locations.map((loc) => ({
+    name: loc.name,
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    rules: allRules[locKey(loc)] || []
+  }));
+  await fetch('/api/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subscription: pushSubscription, locations: locs })
+  });
+}
+
+async function checkExistingSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const reg = await navigator.serviceWorker.ready;
+  pushSubscription = await reg.pushManager.getSubscription();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const arr = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) arr[i] = rawData.charCodeAt(i);
+  return arr;
+}
+
+/* ---- Notification Overlay ---- */
+
+function openNotificationOverlay() {
+  const overlay = document.getElementById('notification-overlay');
+  overlay.classList.remove('hidden');
+  renderNotificationOverlay();
+}
+
+function closeNotificationOverlay() {
+  document.getElementById('notification-overlay').classList.add('hidden');
+}
+
+function renderNotificationOverlay() {
+  const inner = document.querySelector('.notification-overlay-inner');
+  const isSubscribed = !!pushSubscription;
+
+  let html = `
+    <div class="notif-header">
+      <h2 class="notif-title">Upozornění</h2>
+      <button class="notif-close" id="notif-close-btn">×</button>
+    </div>
+    <div class="push-toggle-row">
+      <div>
+        <div class="push-toggle-label">Push notifikace</div>
+        <div class="push-toggle-hint">${isSubscribed ? 'Zapnuto – upozornění chodí na mobil' : 'Zapněte pro příjem upozornění'}</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="push-master-toggle" ${isSubscribed ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  `;
+
+  if (locations.length === 0) {
+    html += '<p class="no-rules-text">Nejprve přidejte město.</p>';
+  } else {
+    locations.forEach((loc) => {
+      const rules = getRulesForLocation(loc);
+      const lk = locKey(loc);
+      html += `
+        <div class="notif-location" data-lockey="${lk}">
+          <div class="notif-location-name">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            ${loc.name}
+          </div>
+          <div class="preset-group">
+            ${PRESETS.map((p, pi) => `<button class="preset-btn" data-preset="${pi}" data-lockey="${lk}">${p.name}</button>`).join('')}
+          </div>
+          <div class="rules-container" data-lockey="${lk}">
+            ${rules.length === 0 ? '<p class="no-rules-text">Žádná pravidla</p>' : ''}
+            ${rules.map((r) => renderRuleCardHTML(r, lk)).join('')}
+          </div>
+          <button class="add-rule-btn" data-lockey="${lk}">+ Přidat pravidlo</button>
+        </div>
+      `;
+    });
+  }
+
+  inner.innerHTML = html;
+
+  // Event listeners
+  document.getElementById('notif-close-btn').addEventListener('click', closeNotificationOverlay);
+
+  document.getElementById('push-master-toggle').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      const ok = await subscribePush();
+      if (!ok) e.target.checked = false;
+    } else {
+      await unsubscribePush();
+    }
+    renderNotificationOverlay();
+  });
+
+  inner.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const pi = parseInt(btn.dataset.preset);
+      const lk = btn.dataset.lockey;
+      const loc = locations.find((l) => locKey(l) === lk);
+      if (!loc) return;
+      const preset = PRESETS[pi];
+      const rule = {
+        id: 'r_' + Date.now(),
+        enabled: true,
+        name: preset.name,
+        conditions: JSON.parse(JSON.stringify(preset.conditions)),
+        logic: preset.logic,
+        timeHorizon: preset.timeHorizon,
+        consecutiveHours: preset.consecutiveHours,
+        cooldownMinutes: preset.cooldownMinutes
+      };
+      const rules = getRulesForLocation(loc);
+      rules.push(rule);
+      setRulesForLocation(loc, rules);
+      syncSubscription();
+      renderNotificationOverlay();
+    });
+  });
+
+  inner.querySelectorAll('.add-rule-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const lk = btn.dataset.lockey;
+      const loc = locations.find((l) => locKey(l) === lk);
+      if (loc) openRuleEditor(loc, null);
+    });
+  });
+
+  inner.querySelectorAll('.rule-toggle').forEach((toggle) => {
+    toggle.addEventListener('change', (e) => {
+      const ruleId = e.target.dataset.ruleid;
+      const lk = e.target.dataset.lockey;
+      const loc = locations.find((l) => locKey(l) === lk);
+      if (!loc) return;
+      const rules = getRulesForLocation(loc);
+      const rule = rules.find((r) => r.id === ruleId);
+      if (rule) {
+        rule.enabled = e.target.checked;
+        setRulesForLocation(loc, rules);
+        syncSubscription();
+      }
+    });
+  });
+
+  inner.querySelectorAll('.rule-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ruleId = btn.dataset.ruleid;
+      const lk = btn.dataset.lockey;
+      const loc = locations.find((l) => locKey(l) === lk);
+      if (!loc) return;
+      const rule = getRulesForLocation(loc).find((r) => r.id === ruleId);
+      if (rule) openRuleEditor(loc, rule);
+    });
+  });
+
+  inner.querySelectorAll('.rule-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ruleId = btn.dataset.ruleid;
+      const lk = btn.dataset.lockey;
+      const loc = locations.find((l) => locKey(l) === lk);
+      if (!loc) return;
+      let rules = getRulesForLocation(loc);
+      rules = rules.filter((r) => r.id !== ruleId);
+      setRulesForLocation(loc, rules);
+      syncSubscription();
+      renderNotificationOverlay();
+    });
+  });
+}
+
+function renderRuleCardHTML(rule, lk) {
+  return `
+    <div class="rule-card">
+      <div class="rule-card-info">
+        <div class="rule-card-name">${rule.name || 'Pravidlo'}</div>
+        <div class="rule-summary">${generateRuleSummary(rule)}</div>
+      </div>
+      <div class="rule-card-actions">
+        <label class="toggle-switch" style="transform:scale(0.75)">
+          <input type="checkbox" class="rule-toggle" data-ruleid="${rule.id}" data-lockey="${lk}" ${rule.enabled ? 'checked' : ''}>
+          <span class="toggle-slider"></span>
+        </label>
+        <button class="rule-action-btn rule-edit-btn" data-ruleid="${rule.id}" data-lockey="${lk}" title="Upravit">✎</button>
+        <button class="rule-action-btn rule-delete-btn delete" data-ruleid="${rule.id}" data-lockey="${lk}" title="Smazat">×</button>
+      </div>
+    </div>
+  `;
+}
+
+function generateRuleSummary(rule) {
+  const parts = rule.conditions.map((c) => {
+    const opt = PARAM_OPTIONS.find((p) => p.param === c.param);
+    const label = opt ? opt.label : c.param;
+    const unit = opt ? opt.unit : '';
+    if (c.op === 'in') {
+      const names = [];
+      WEATHER_CODE_GROUPS.forEach((g) => {
+        if (Array.isArray(c.value) && g.codes.some((code) => c.value.includes(code))) {
+          names.push(g.label);
+        }
+      });
+      return `${label}: ${names.join(', ') || 'vybrané'}`;
+    }
+    return `${label} ${OP_LABELS[c.op] || c.op} ${c.value}${unit}`;
+  });
+  let text = parts.join(rule.logic === 'OR' ? ' nebo ' : ' a ');
+  if (rule.consecutiveHours) text += ` · ${rule.consecutiveHours}h v kuse`;
+  text += ` · příštích ${rule.timeHorizon || 24}h`;
+  return text;
+}
+
+/* ---- Rule Editor ---- */
+
+let editorState = { conditions: [], logic: 'AND', timeHorizon: 24, consecutiveHours: null, cooldownMinutes: 360 };
+
+function openRuleEditor(loc, existingRule) {
+  const inner = document.querySelector('.notification-overlay-inner');
+  const lk = locKey(loc);
+
+  if (existingRule) {
+    editorState = {
+      id: existingRule.id,
+      name: existingRule.name || '',
+      conditions: JSON.parse(JSON.stringify(existingRule.conditions)),
+      logic: existingRule.logic || 'AND',
+      timeHorizon: existingRule.timeHorizon || 24,
+      consecutiveHours: existingRule.consecutiveHours || null,
+      cooldownMinutes: existingRule.cooldownMinutes || 360
+    };
+  } else {
+    editorState = {
+      id: null,
+      name: '',
+      conditions: [{ param: 'temperature_2m', op: '>', value: 25 }],
+      logic: 'AND',
+      timeHorizon: 24,
+      consecutiveHours: null,
+      cooldownMinutes: 360
+    };
+  }
+
+  renderRuleEditor(inner, loc, lk);
+}
+
+function renderRuleEditor(container, loc, lk) {
+  let html = `
+    <div class="rule-editor">
+      <div class="rule-editor-title">${editorState.id ? 'Upravit pravidlo' : 'Nové pravidlo'}</div>
+      <div class="rule-field">
+        <div class="rule-field-label">Název</div>
+        <input type="text" id="rule-name-input" value="${editorState.name}" placeholder="Např. Počasí na koupání">
+      </div>
+      <div class="rule-field">
+        <div class="rule-field-label">Podmínky</div>
+        <div id="conditions-container"></div>
+        <button class="add-condition-btn" id="add-condition-btn">+ Přidat podmínku</button>
+      </div>
+      <div class="rule-field">
+        <div class="rule-field-label">Časový horizont</div>
+        <div class="stepper">
+          <button class="stepper-btn" id="horizon-minus">−</button>
+          <span class="stepper-value" id="horizon-value">${editorState.timeHorizon}h</span>
+          <button class="stepper-btn" id="horizon-plus">+</button>
+        </div>
+      </div>
+      <div class="rule-field">
+        <div class="inline-toggle">
+          <span class="inline-toggle-label">Po sobě jdoucí hodiny</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="consecutive-toggle" ${editorState.consecutiveHours ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="consecutive-stepper" style="margin-top:8px;${editorState.consecutiveHours ? '' : 'display:none'}">
+          <div class="stepper">
+            <button class="stepper-btn" id="consec-minus">−</button>
+            <span class="stepper-value" id="consec-value">${editorState.consecutiveHours || 2}h</span>
+            <button class="stepper-btn" id="consec-plus">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="rule-field">
+        <div class="rule-field-label">Cooldown (min. interval mezi upozorněními)</div>
+        <select id="cooldown-select">
+          ${[60,180,360,720,1440].map((m) => `<option value="${m}" ${editorState.cooldownMinutes === m ? 'selected' : ''}>${m < 60 ? m + ' min' : (m / 60) + 'h'}</option>`).join('')}
+        </select>
+      </div>
+      <div class="editor-buttons">
+        <button class="editor-btn secondary" id="editor-cancel">Zrušit</button>
+        <button class="editor-btn primary" id="editor-save">Uložit</button>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+  renderConditionRows();
+
+  // Event listeners
+  document.getElementById('editor-cancel').addEventListener('click', () => renderNotificationOverlay());
+
+  document.getElementById('editor-save').addEventListener('click', () => {
+    editorState.name = document.getElementById('rule-name-input').value.trim() || autoName(editorState);
+    editorState.cooldownMinutes = parseInt(document.getElementById('cooldown-select').value);
+
+    const rule = {
+      id: editorState.id || 'r_' + Date.now(),
+      enabled: true,
+      name: editorState.name,
+      conditions: editorState.conditions,
+      logic: editorState.logic,
+      timeHorizon: editorState.timeHorizon,
+      consecutiveHours: editorState.consecutiveHours,
+      cooldownMinutes: editorState.cooldownMinutes
+    };
+
+    const rules = getRulesForLocation(loc);
+    const existIdx = rules.findIndex((r) => r.id === rule.id);
+    if (existIdx >= 0) {
+      rules[existIdx] = rule;
+    } else {
+      rules.push(rule);
+    }
+    setRulesForLocation(loc, rules);
+    syncSubscription();
+    renderNotificationOverlay();
+  });
+
+  document.getElementById('add-condition-btn').addEventListener('click', () => {
+    editorState.conditions.push({ param: 'temperature_2m', op: '>', value: 25 });
+    renderConditionRows();
+  });
+
+  // Horizon stepper
+  document.getElementById('horizon-minus').addEventListener('click', () => {
+    editorState.timeHorizon = Math.max(1, editorState.timeHorizon - (editorState.timeHorizon > 24 ? 12 : editorState.timeHorizon > 6 ? 6 : 1));
+    document.getElementById('horizon-value').textContent = editorState.timeHorizon + 'h';
+  });
+  document.getElementById('horizon-plus').addEventListener('click', () => {
+    editorState.timeHorizon = Math.min(168, editorState.timeHorizon + (editorState.timeHorizon >= 24 ? 12 : editorState.timeHorizon >= 6 ? 6 : 1));
+    document.getElementById('horizon-value').textContent = editorState.timeHorizon + 'h';
+  });
+
+  // Consecutive toggle & stepper
+  const consecToggle = document.getElementById('consecutive-toggle');
+  const consecStepper = document.getElementById('consecutive-stepper');
+  consecToggle.addEventListener('change', () => {
+    if (consecToggle.checked) {
+      editorState.consecutiveHours = editorState.consecutiveHours || 2;
+      consecStepper.style.display = '';
+    } else {
+      editorState.consecutiveHours = null;
+      consecStepper.style.display = 'none';
+    }
+  });
+  document.getElementById('consec-minus').addEventListener('click', () => {
+    editorState.consecutiveHours = Math.max(2, (editorState.consecutiveHours || 2) - 1);
+    document.getElementById('consec-value').textContent = editorState.consecutiveHours + 'h';
+  });
+  document.getElementById('consec-plus').addEventListener('click', () => {
+    editorState.consecutiveHours = Math.min(48, (editorState.consecutiveHours || 2) + 1);
+    document.getElementById('consec-value').textContent = editorState.consecutiveHours + 'h';
+  });
+}
+
+function renderConditionRows() {
+  const container = document.getElementById('conditions-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  editorState.conditions.forEach((cond, idx) => {
+    // Logic badge between conditions
+    if (idx > 0) {
+      const badge = document.createElement('div');
+      badge.className = 'logic-badge';
+      badge.innerHTML = `<span class="logic-toggle" data-idx="${idx}">${editorState.logic}</span>`;
+      badge.querySelector('.logic-toggle').addEventListener('click', () => {
+        editorState.logic = editorState.logic === 'AND' ? 'OR' : 'AND';
+        renderConditionRows();
+      });
+      container.appendChild(badge);
+    }
+
+    if (cond.param === 'weather_code' && cond.op === 'in') {
+      // Weather code chips
+      const wrapper = document.createElement('div');
+      wrapper.style.marginBottom = '8px';
+      wrapper.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.9rem;font-weight:500">Kód počasí</span>
+          ${editorState.conditions.length > 1 ? `<button class="condition-delete" data-idx="${idx}">×</button>` : ''}
+        </div>
+        <div class="weather-chips">
+          ${WEATHER_CODE_GROUPS.map((g) => {
+            const selected = Array.isArray(cond.value) && g.codes.some((c) => cond.value.includes(c));
+            return `<span class="weather-chip ${selected ? 'selected' : ''}" data-codes="${g.codes.join(',')}" data-idx="${idx}">${g.label}</span>`;
+          }).join('')}
+        </div>
+      `;
+
+      wrapper.querySelectorAll('.weather-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const codes = chip.dataset.codes.split(',').map(Number);
+          if (!Array.isArray(cond.value)) cond.value = [];
+          const hasAll = codes.every((c) => cond.value.includes(c));
+          if (hasAll) {
+            cond.value = cond.value.filter((c) => !codes.includes(c));
+          } else {
+            codes.forEach((c) => { if (!cond.value.includes(c)) cond.value.push(c); });
+          }
+          renderConditionRows();
+        });
+      });
+
+      const delBtn = wrapper.querySelector('.condition-delete');
+      if (delBtn) {
+        delBtn.addEventListener('click', () => {
+          editorState.conditions.splice(idx, 1);
+          renderConditionRows();
+        });
+      }
+
+      container.appendChild(wrapper);
+    } else {
+      // Normal condition row
+      const row = document.createElement('div');
+      row.className = 'condition-row';
+
+      const paramSelect = document.createElement('select');
+      PARAM_OPTIONS.forEach((opt) => {
+        const o = document.createElement('option');
+        o.value = opt.param;
+        o.textContent = opt.label;
+        if (opt.param === cond.param) o.selected = true;
+        paramSelect.appendChild(o);
+      });
+
+      const opSelect = document.createElement('select');
+      ['>', '<', '>=', '<=', '=='].forEach((op) => {
+        const o = document.createElement('option');
+        o.value = op;
+        o.textContent = OP_LABELS[op];
+        if (op === cond.op) o.selected = true;
+        opSelect.appendChild(o);
+      });
+
+      const valInput = document.createElement('input');
+      valInput.type = 'number';
+      valInput.value = cond.value;
+      const paramOpt = PARAM_OPTIONS.find((p) => p.param === cond.param);
+      if (paramOpt) {
+        valInput.min = paramOpt.min;
+        valInput.max = paramOpt.max;
+        valInput.step = paramOpt.step;
+      }
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'condition-delete';
+      delBtn.textContent = '×';
+      delBtn.style.visibility = editorState.conditions.length > 1 ? 'visible' : 'hidden';
+
+      paramSelect.addEventListener('change', () => {
+        const newParam = paramSelect.value;
+        cond.param = newParam;
+        if (newParam === 'weather_code') {
+          cond.op = 'in';
+          cond.value = [0, 1, 2];
+        } else {
+          const newOpt = PARAM_OPTIONS.find((p) => p.param === newParam);
+          cond.op = newOpt?.defaultOp || '>';
+          cond.value = newOpt?.defaultVal || 0;
+        }
+        renderConditionRows();
+      });
+
+      opSelect.addEventListener('change', () => { cond.op = opSelect.value; });
+      valInput.addEventListener('input', () => { cond.value = parseFloat(valInput.value) || 0; });
+      delBtn.addEventListener('click', () => {
+        editorState.conditions.splice(idx, 1);
+        renderConditionRows();
+      });
+
+      row.appendChild(paramSelect);
+      row.appendChild(opSelect);
+      row.appendChild(valInput);
+      row.appendChild(delBtn);
+      container.appendChild(row);
+    }
+  });
+}
+
+function autoName(state) {
+  if (state.conditions.length === 0) return 'Pravidlo';
+  const first = state.conditions[0];
+  const opt = PARAM_OPTIONS.find((p) => p.param === first.param);
+  return opt ? opt.label : 'Pravidlo';
+}
+
+/* ---- Wire up bottom bar ---- */
+
+const _originalSetupBottomBar = setupBottomBar;
+setupBottomBar = function () {
+  _originalSetupBottomBar();
+  const notifBtn = document.getElementById('btn-notifications');
+  if (notifBtn) notifBtn.addEventListener('click', openNotificationOverlay);
+};
+
+/* ---- Init: check existing push subscription ---- */
+
+const _originalInitApp = initApp;
+initApp = async function () {
+  await _originalInitApp();
+  await checkExistingSubscription();
+};
+
 if (typeof module !== 'undefined') {
   module.exports = { getWeatherIcon };
 }
