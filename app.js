@@ -317,62 +317,66 @@ async function geocodeCity(name) {
 
 async function fetchWeather(loc) {
   const { latitude, longitude } = loc;
+  // Use both old and new param names for compatibility
   const hourlyParams = [
     'temperature_2m', 'apparent_temperature', 'precipitation_probability',
-    'weathercode', 'relative_humidity_2m', 'windspeed_10m', 'winddirection_10m',
-    'windgusts_10m', 'surface_pressure', 'precipitation', 'uv_index', 'visibility'
+    'weather_code', 'relative_humidity_2m', 'wind_speed_10m', 'wind_direction_10m',
+    'wind_gusts_10m', 'surface_pressure', 'precipitation', 'visibility'
   ].join(',');
   const params = `hourly=${hourlyParams}&timezone=Europe%2FPrague`;
   const dailyParams = 'daily=sunrise,sunset,uv_index_max&timezone=Europe%2FPrague';
 
   const d2Url = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&${params}&forecast_hours=48&model=icon_d2`;
   const euUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&${params}&forecast_hours=168&model=icon_eu`;
-  const dailyUrl = `https://api.open-meteo.com/v1/dwd-icon?latitude=${latitude}&longitude=${longitude}&${dailyParams}&forecast_days=10`;
+  // Use general forecast API for daily data (sunrise/sunset/UV) - works across all models
+  const dailyUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&${dailyParams}&forecast_days=10`;
 
   try {
     const [d2Resp, euResp, dailyResp] = await Promise.all([fetch(d2Url), fetch(euUrl), fetch(dailyUrl)]);
     const [d2Data, euData, dailyData] = await Promise.all([d2Resp.json(), euResp.json(), dailyResp.json()]);
 
     const mapHourly = (data, count) => {
-      const time = data.hourly?.time || [];
+      const h = data.hourly || {};
+      const time = h.time || [];
       return time.slice(0, count).map((hour, i) => ({
         time: hour,
-        temp: data.hourly.temperature_2m[i],
-        apparent: data.hourly.apparent_temperature[i],
-        precipProb: data.hourly.precipitation_probability[i] || 0,
-        weatherCode: data.hourly.weathercode[i],
-        humidity: data.hourly.relative_humidity_2m[i],
-        wind: data.hourly.windspeed_10m[i],
-        windDirection: data.hourly.winddirection_10m?.[i] || 0,
-        windGusts: data.hourly.windgusts_10m?.[i] || 0,
-        pressure: data.hourly.surface_pressure?.[i] || null,
-        precipitation: data.hourly.precipitation?.[i] || 0,
-        uvIndex: data.hourly.uv_index?.[i] || 0,
-        visibility: data.hourly.visibility?.[i] || null
+        temp: (h.temperature_2m || [])[i],
+        apparent: (h.apparent_temperature || [])[i],
+        precipProb: (h.precipitation_probability || [])[i] || 0,
+        weatherCode: (h.weather_code ?? h.weathercode ?? [])[i],
+        humidity: (h.relative_humidity_2m || [])[i],
+        wind: (h.wind_speed_10m ?? h.windspeed_10m ?? [])[i],
+        windDirection: (h.wind_direction_10m ?? h.winddirection_10m ?? [])[i] || 0,
+        windGusts: (h.wind_gusts_10m ?? h.windgusts_10m ?? [])[i] || 0,
+        pressure: (h.surface_pressure || [])[i] ?? null,
+        precipitation: (h.precipitation || [])[i] || 0,
+        uvIndex: 0, // UV index from daily data, not available hourly in ICON
+        visibility: (h.visibility || [])[i] ?? null
       }));
     };
 
     const d2Hourly = mapHourly(d2Data, 48);
 
     const d2EndTime = d2Hourly.length > 0 ? d2Hourly[d2Hourly.length - 1].time : null;
-    const euTime = euData.hourly?.time || [];
+    const euH = euData.hourly || {};
+    const euTime = euH.time || [];
     const euHourly = [];
     for (let i = 0; i < euTime.length; i++) {
       if (d2EndTime && euTime[i] <= d2EndTime) continue;
       euHourly.push({
         time: euTime[i],
-        temp: euData.hourly.temperature_2m[i],
-        apparent: euData.hourly.apparent_temperature[i],
-        precipProb: euData.hourly.precipitation_probability[i] || 0,
-        weatherCode: euData.hourly.weathercode[i],
-        humidity: euData.hourly.relative_humidity_2m[i],
-        wind: euData.hourly.windspeed_10m[i],
-        windDirection: euData.hourly.winddirection_10m?.[i] || 0,
-        windGusts: euData.hourly.windgusts_10m?.[i] || 0,
-        pressure: euData.hourly.surface_pressure?.[i] || null,
-        precipitation: euData.hourly.precipitation?.[i] || 0,
-        uvIndex: euData.hourly.uv_index?.[i] || 0,
-        visibility: euData.hourly.visibility?.[i] || null
+        temp: (euH.temperature_2m || [])[i],
+        apparent: (euH.apparent_temperature || [])[i],
+        precipProb: (euH.precipitation_probability || [])[i] || 0,
+        weatherCode: (euH.weather_code ?? euH.weathercode ?? [])[i],
+        humidity: (euH.relative_humidity_2m || [])[i],
+        wind: (euH.wind_speed_10m ?? euH.windspeed_10m ?? [])[i],
+        windDirection: (euH.wind_direction_10m ?? euH.winddirection_10m ?? [])[i] || 0,
+        windGusts: (euH.wind_gusts_10m ?? euH.windgusts_10m ?? [])[i] || 0,
+        pressure: (euH.surface_pressure || [])[i] ?? null,
+        precipitation: (euH.precipitation || [])[i] || 0,
+        uvIndex: 0,
+        visibility: (euH.visibility || [])[i] ?? null
       });
     }
 
@@ -524,9 +528,9 @@ function createCityPage(loc, weather) {
   const grid = document.createElement('div');
   grid.className = 'details-grid';
 
-  // UV Index card
-  const uvVal = current ? Math.round(current.uvIndex) : 0;
-  const uvMax = today?.uvMax ? Math.round(today.uvMax) : uvVal;
+  // UV Index card (from daily API, not available hourly in ICON)
+  const uvVal = today?.uvMax != null ? Math.round(today.uvMax) : 0;
+  const uvMax = uvVal;
   grid.innerHTML += `
     <div class="detail-card">
       <div class="detail-label">
