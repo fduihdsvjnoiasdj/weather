@@ -23,6 +23,7 @@ async function initApp() {
   setupSearch();
   setupBottomBar();
   setupPageDots();
+  await checkExistingSubscription();
 }
 
 function getGPSLocation() {
@@ -163,6 +164,8 @@ function setupSearch() {
 
 function setupBottomBar() {
   document.getElementById('btn-list').addEventListener('click', openSearchOverlay);
+  const notifBtn = document.getElementById('btn-notifications');
+  if (notifBtn) notifBtn.addEventListener('click', openNotificationOverlay);
 }
 
 function openSearchOverlay() {
@@ -1538,23 +1541,6 @@ function autoName(state) {
   const opt = PARAM_OPTIONS.find((p) => p.param === first.param);
   return opt ? opt.label : 'Pravidlo';
 }
-
-/* ---- Wire up bottom bar ---- */
-
-const _originalSetupBottomBar = setupBottomBar;
-setupBottomBar = function () {
-  _originalSetupBottomBar();
-  const notifBtn = document.getElementById('btn-notifications');
-  if (notifBtn) notifBtn.addEventListener('click', openNotificationOverlay);
-};
-
-/* ---- Init: check existing push subscription ---- */
-
-const _originalInitApp = initApp;
-initApp = async function () {
-  await _originalInitApp();
-  await checkExistingSubscription();
-};
 
 if (typeof module !== 'undefined') {
   module.exports = { getWeatherIcon };
