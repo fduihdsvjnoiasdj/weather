@@ -149,10 +149,9 @@ function evaluateRule(rule, hourlyData) {
     return { triggered: false };
   }
 
-  const horizon = Math.min(rule.timeHorizon || 24, hourlyData.length);
-  const windowData = hourlyData.slice(0, horizon);
+  // Always check 24 hours ahead
+  const windowData = hourlyData.slice(0, Math.min(24, hourlyData.length));
 
-  // For each hour, check if all/any conditions match
   const logic = rule.logic || 'AND';
   const hourMatches = windowData.map((hourData) => {
     const results = rule.conditions.map((c) => evaluateCondition(c, hourData));
@@ -161,7 +160,6 @@ function evaluateRule(rule, hourlyData) {
 
   const consecutive = rule.consecutiveHours;
   if (consecutive && consecutive > 1) {
-    // Find N consecutive matching hours
     let count = 0;
     for (const match of hourMatches) {
       if (match) {
@@ -174,24 +172,12 @@ function evaluateRule(rule, hourlyData) {
     return { triggered: false };
   }
 
-  // Any single hour match triggers
   return { triggered: hourMatches.some(Boolean) };
 }
 
-/* ---- Cooldown Tracking ---- */
+/* ---- Daily check tracking ---- */
 
-const cooldowns = new Map(); // ruleId -> timestamp
-
-function isCoolingDown(ruleId, cooldownMinutes) {
-  if (!cooldownMinutes) return false;
-  const last = cooldowns.get(ruleId);
-  if (!last) return false;
-  return Date.now() - last < cooldownMinutes * 60 * 1000;
-}
-
-function markTriggered(ruleId) {
-  cooldowns.set(ruleId, Date.now());
-}
+const checkedToday = new Map(); // ruleId -> "YYYY-MM-DD"
 
 /* ---- Rule Summary for Notification Body ---- */
 
@@ -224,25 +210,37 @@ function buildNotificationBody(rule) {
   });
   let text = parts.join(rule.logic === 'OR' ? ' nebo ' : ' a ');
   if (rule.consecutiveHours) text += ` po dobu ${rule.consecutiveHours}h`;
-  text += ` (příštích ${rule.timeHorizon || 24}h)`;
+  text += ' · dnes';
   return text;
 }
 
-/* ---- Scheduling Loop ---- */
+/* ---- Scheduling Loop – daily check at user-set time ---- */
 
 async function checkAllSubscriptions() {
+  const now = new Date();
+  const currentHH = String(now.getHours()).padStart(2, '0');
+  const currentMM = String(now.getMinutes()).padStart(2, '0');
+  const currentTime = `${currentHH}:${currentMM}`;
+  const todayStr = now.toISOString().split('T')[0];
+
   for (const sub of subscriptions) {
     for (const loc of (sub.locations || [])) {
       for (const rule of (loc.rules || [])) {
         if (!rule.enabled) continue;
-        if (isCoolingDown(rule.id, rule.cooldownMinutes)) continue;
+
+        // Check if it's the right time for this rule
+        const checkTime = rule.checkTime || '08:00';
+        if (currentTime !== checkTime) continue;
+
+        // Don't check the same rule twice in one day
+        if (checkedToday.get(rule.id) === todayStr) continue;
+        checkedToday.set(rule.id, todayStr);
 
         try {
           const hourly = await fetchWeatherForRules(loc);
           const result = evaluateRule(rule, hourly);
 
           if (result.triggered) {
-            markTriggered(rule.id);
             const payload = JSON.stringify({
               title: `${loc.name}: ${rule.name || 'Upozornění'}`,
               body: buildNotificationBody(rule),
@@ -254,12 +252,11 @@ async function checkAllSubscriptions() {
               console.log(`Notification sent: ${loc.name} - ${rule.name}`);
             } catch (pushErr) {
               console.error('Push failed:', pushErr.message);
-              // Remove invalid subscriptions (410 Gone)
               if (pushErr.statusCode === 410) {
                 const idx = subscriptions.indexOf(sub);
                 if (idx !== -1) subscriptions.splice(idx, 1);
                 saveSubscriptionsToDisk();
-                return; // Skip rest of this subscription
+                return;
               }
             }
           }
@@ -271,15 +268,10 @@ async function checkAllSubscriptions() {
   }
 }
 
-// Check every 5 minutes
+// Check every minute to match checkTime
 setInterval(() => {
   checkAllSubscriptions().catch((e) => console.error('Check error:', e));
-}, 5 * 60 * 1000);
-
-// Also check shortly after startup
-setTimeout(() => {
-  checkAllSubscriptions().catch((e) => console.error('Initial check error:', e));
-}, 30 * 1000);
+}, 60 * 1000);
 
 app.use(express.static(__dirname));
 
