@@ -1023,14 +1023,20 @@ async function subscribePush() {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return false;
 
-  const reg = await navigator.serviceWorker.ready;
-  const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-  pushSubscription = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey
-  });
-  await syncSubscription();
-  return true;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+    pushSubscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    });
+    await syncSubscription();
+    return true;
+  } catch (err) {
+    console.error('Push subscription failed:', err);
+    pushSubscription = null;
+    return false;
+  }
 }
 
 async function unsubscribePush() {
@@ -1078,7 +1084,8 @@ function urlBase64ToUint8Array(base64String) {
 
 /* ---- Notification Overlay ---- */
 
-function openNotificationOverlay() {
+async function openNotificationOverlay() {
+  await checkExistingSubscription();
   const overlay = document.getElementById('notification-overlay');
   overlay.classList.remove('hidden');
   renderNotificationOverlay();
@@ -1107,7 +1114,7 @@ function renderNotificationOverlay() {
         <span class="toggle-slider"></span>
       </label>
     </div>
-    <button class="test-notif-btn" id="test-notif-btn" ${isSubscribed ? '' : 'disabled'}>Odeslat testovací notifikaci (30s)</button>
+    <button class="test-notif-btn" id="test-notif-btn">Testovací notifikace (3s)</button>
   `;
 
   if (locations.length === 0) {
@@ -1141,34 +1148,45 @@ function renderNotificationOverlay() {
   document.getElementById('notif-close-btn').addEventListener('click', closeNotificationOverlay);
 
   document.getElementById('push-master-toggle').addEventListener('change', async (e) => {
-    if (e.target.checked) {
-      const ok = await subscribePush();
-      if (!ok) e.target.checked = false;
-    } else {
-      await unsubscribePush();
+    try {
+      if (e.target.checked) {
+        const ok = await subscribePush();
+        if (!ok) e.target.checked = false;
+      } else {
+        await unsubscribePush();
+      }
+    } catch (err) {
+      console.error('Push toggle error:', err);
+      e.target.checked = false;
     }
     renderNotificationOverlay();
   });
 
   document.getElementById('test-notif-btn').addEventListener('click', async () => {
-    if (!pushSubscription) return;
     const btn = document.getElementById('test-notif-btn');
     btn.disabled = true;
     btn.textContent = 'Odesílám…';
     try {
-      await fetch('/api/test-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription: pushSubscription, delaySeconds: 30 })
-      });
-      btn.textContent = 'Odesláno! Notifikace přijde za 30s';
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        btn.textContent = 'Notifikace nejsou povoleny';
+        setTimeout(() => { btn.textContent = 'Testovací notifikace (3s)'; btn.disabled = false; }, 3000);
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
       setTimeout(() => {
-        btn.textContent = 'Odeslat testovací notifikaci (30s)';
-        btn.disabled = false;
-      }, 5000);
+        reg.showNotification('Testovací notifikace', {
+          body: 'Push notifikace fungují správně!',
+          icon: 'icons/icon-192.png',
+          badge: 'icons/icon-192.png'
+        });
+      }, 3000);
+      btn.textContent = 'Notifikace přijde za 3s';
+      setTimeout(() => { btn.textContent = 'Testovací notifikace (3s)'; btn.disabled = false; }, 5000);
     } catch (err) {
-      btn.textContent = 'Chyba při odesílání';
-      btn.disabled = false;
+      console.error('Test notification error:', err);
+      btn.textContent = 'Chyba';
+      setTimeout(() => { btn.textContent = 'Testovací notifikace (3s)'; btn.disabled = false; }, 3000);
     }
   });
 
