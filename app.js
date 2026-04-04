@@ -1098,6 +1098,17 @@ function renderNotificationOverlay() {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    ${isSubscribed ? `
+    <div class="test-notif-section">
+      <div class="test-notif-label">Test notifikací</div>
+      <div class="test-notif-hint">Zavřete aplikaci a počkejte</div>
+      <div class="test-notif-buttons">
+        <button class="test-notif-btn" data-delay="1">1 min</button>
+        <button class="test-notif-btn" data-delay="2">2 min</button>
+        <button class="test-notif-btn" data-delay="5">5 min</button>
+      </div>
+    </div>
+    ` : ''}
   `;
 
   if (locations.length === 0) {
@@ -1138,6 +1149,23 @@ function renderNotificationOverlay() {
       await unsubscribePush();
     }
     renderNotificationOverlay();
+  });
+
+  inner.querySelectorAll('.test-notif-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const delay = parseInt(btn.dataset.delay);
+      try {
+        await fetch('/api/test-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: pushSubscription, delayMinutes: delay })
+        });
+        btn.textContent = 'Naplánováno ✓';
+        btn.disabled = true;
+      } catch (err) {
+        console.error('Test notification request failed:', err);
+      }
+    });
   });
 
   inner.querySelectorAll('.preset-btn').forEach((btn) => {

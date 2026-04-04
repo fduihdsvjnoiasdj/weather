@@ -78,6 +78,31 @@ app.get('/api/vapid-key', (_req, res) => {
   res.json({ key: VAPID_PUBLIC_KEY });
 });
 
+/* ---- Test Notification ---- */
+
+app.post('/api/test-notification', (req, res) => {
+  const { subscription, delayMinutes } = req.body || {};
+  if (!subscription || !delayMinutes) {
+    return res.status(400).json({ error: 'Missing subscription or delayMinutes' });
+  }
+  const delayMs = delayMinutes * 60 * 1000;
+  setTimeout(async () => {
+    const payload = JSON.stringify({
+      title: 'Testovací notifikace',
+      body: `Toto je test – notifikace naplánovaná před ${delayMinutes} min.`,
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png'
+    });
+    try {
+      await webpush.sendNotification(subscription, payload);
+      console.log(`Test notification sent (${delayMinutes}min delay)`);
+    } catch (err) {
+      console.error('Test notification failed:', err.message);
+    }
+  }, delayMs);
+  res.json({ success: true, scheduledIn: delayMinutes });
+});
+
 /* ---- Weather Fetch (server-side, for rule evaluation) ---- */
 
 const weatherServerCache = new Map();

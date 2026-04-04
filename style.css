@@ -965,6 +965,54 @@ body {
   margin-top: 2px;
 }
 
+/* Test notification */
+.test-notif-section {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 0.5px solid var(--glass-border);
+  margin-bottom: 16px;
+}
+
+.test-notif-label {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.test-notif-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.test-notif-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.test-notif-btn {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 0.5px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.test-notif-btn:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.test-notif-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* iOS-style toggle switch */
 .toggle-switch {
   position: relative;
