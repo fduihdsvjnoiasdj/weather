@@ -298,7 +298,13 @@ setInterval(() => {
   checkAllSubscriptions().catch((e) => console.error('Check error:', e));
 }, 60 * 1000);
 
-app.use(express.static(__dirname));
+// Serve sw.js without cache so browser always checks for updates
+app.get('/sw.js', (_req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'sw.js'));
+});
+
+app.use(express.static(__dirname, { maxAge: 0 }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
