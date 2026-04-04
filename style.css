@@ -965,6 +965,29 @@ body {
   margin-top: 2px;
 }
 
+.test-notif-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid var(--glass-border);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: opacity 0.15s;
+}
+
+.test-notif-btn:active {
+  opacity: 0.7;
+}
+
+.test-notif-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* iOS-style toggle switch */
 .toggle-switch {
   position: relative;
@@ -1168,6 +1191,7 @@ body {
 
 .rule-field input[type="text"],
 .rule-field input[type="number"],
+.rule-field input[type="time"],
 .rule-field select {
   width: 100%;
   padding: 10px 12px;
