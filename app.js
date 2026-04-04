@@ -1098,17 +1098,15 @@ function renderNotificationOverlay() {
         <span class="toggle-slider"></span>
       </label>
     </div>
-    ${isSubscribed ? `
     <div class="test-notif-section">
       <div class="test-notif-label">Test notifikací</div>
-      <div class="test-notif-hint">Zavřete aplikaci a počkejte</div>
+      <div class="test-notif-hint">${isSubscribed ? 'Zavřete aplikaci a počkejte' : 'Nejprve zapněte push notifikace'}</div>
       <div class="test-notif-buttons">
-        <button class="test-notif-btn" data-delay="1">1 min</button>
-        <button class="test-notif-btn" data-delay="2">2 min</button>
-        <button class="test-notif-btn" data-delay="5">5 min</button>
+        <button class="test-notif-btn" data-delay="1" ${isSubscribed ? '' : 'disabled'}>1 min</button>
+        <button class="test-notif-btn" data-delay="2" ${isSubscribed ? '' : 'disabled'}>2 min</button>
+        <button class="test-notif-btn" data-delay="5" ${isSubscribed ? '' : 'disabled'}>5 min</button>
       </div>
     </div>
-    ` : ''}
   `;
 
   if (locations.length === 0) {
