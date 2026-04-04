@@ -955,17 +955,17 @@ const PRESETS = [
   {
     name: 'Déšť',
     conditions: [{ param: 'precipitation_probability', op: '>=', value: 50 }],
-    logic: 'AND', timeHorizon: 2, consecutiveHours: null, cooldownMinutes: 180
+    logic: 'AND', notifyAt: '09:00', consecutiveHours: null
   },
   {
     name: 'Mráz',
     conditions: [{ param: 'temperature_2m', op: '<', value: 0 }],
-    logic: 'AND', timeHorizon: 24, consecutiveHours: null, cooldownMinutes: 720
+    logic: 'AND', notifyAt: '07:00', consecutiveHours: null
   },
   {
     name: 'Silný vítr',
     conditions: [{ param: 'wind_speed_10m', op: '>', value: 50 }],
-    logic: 'AND', timeHorizon: 12, consecutiveHours: null, cooldownMinutes: 360
+    logic: 'AND', notifyAt: '08:00', consecutiveHours: null
   },
   {
     name: 'Koupání',
@@ -973,7 +973,7 @@ const PRESETS = [
       { param: 'weather_code', op: 'in', value: [0, 1, 2] },
       { param: 'temperature_2m', op: '>', value: 25 }
     ],
-    logic: 'AND', timeHorizon: 24, consecutiveHours: 4, cooldownMinutes: 720
+    logic: 'AND', notifyAt: '09:00', consecutiveHours: 3
   }
 ];
 
@@ -990,7 +990,19 @@ function saveRules(rules) {
 }
 
 function getRulesForLocation(loc) {
-  return getStoredRules()[locKey(loc)] || [];
+  const rules = getStoredRules()[locKey(loc)] || [];
+  // Migrate old rules: add notifyAt, remove timeHorizon/cooldownMinutes
+  let needsSave = false;
+  rules.forEach((r) => {
+    if (!r.notifyAt) {
+      r.notifyAt = '09:00';
+      delete r.timeHorizon;
+      delete r.cooldownMinutes;
+      needsSave = true;
+    }
+  });
+  if (needsSave) setRulesForLocation(loc, rules);
+  return rules;
 }
 
 function setRulesForLocation(loc, rules) {
@@ -1095,6 +1107,7 @@ function renderNotificationOverlay() {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <button class="test-notif-btn" id="test-notif-btn" ${isSubscribed ? '' : 'disabled'}>Odeslat testovací notifikaci (30s)</button>
   `;
 
   if (locations.length === 0) {
@@ -1137,6 +1150,28 @@ function renderNotificationOverlay() {
     renderNotificationOverlay();
   });
 
+  document.getElementById('test-notif-btn').addEventListener('click', async () => {
+    if (!pushSubscription) return;
+    const btn = document.getElementById('test-notif-btn');
+    btn.disabled = true;
+    btn.textContent = 'Odesílám…';
+    try {
+      await fetch('/api/test-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: pushSubscription, delaySeconds: 30 })
+      });
+      btn.textContent = 'Odesláno! Notifikace přijde za 30s';
+      setTimeout(() => {
+        btn.textContent = 'Odeslat testovací notifikaci (30s)';
+        btn.disabled = false;
+      }, 5000);
+    } catch (err) {
+      btn.textContent = 'Chyba při odesílání';
+      btn.disabled = false;
+    }
+  });
+
   inner.querySelectorAll('.preset-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const pi = parseInt(btn.dataset.preset);
@@ -1150,9 +1185,8 @@ function renderNotificationOverlay() {
         name: preset.name,
         conditions: JSON.parse(JSON.stringify(preset.conditions)),
         logic: preset.logic,
-        timeHorizon: preset.timeHorizon,
-        consecutiveHours: preset.consecutiveHours,
-        cooldownMinutes: preset.cooldownMinutes
+        notifyAt: preset.notifyAt,
+        consecutiveHours: preset.consecutiveHours
       };
       const rules = getRulesForLocation(loc);
       rules.push(rule);
@@ -1249,13 +1283,13 @@ function generateRuleSummary(rule) {
   });
   let text = parts.join(rule.logic === 'OR' ? ' nebo ' : ' a ');
   if (rule.consecutiveHours) text += ` · ${rule.consecutiveHours}h v kuse`;
-  text += ` · příštích ${rule.timeHorizon || 24}h`;
+  text += ` · denně v ${rule.notifyAt || '09:00'}`;
   return text;
 }
 
 /* ---- Rule Editor ---- */
 
-let editorState = { conditions: [], logic: 'AND', timeHorizon: 24, consecutiveHours: null, cooldownMinutes: 360 };
+let editorState = { conditions: [], logic: 'AND', notifyAt: '09:00', consecutiveHours: null };
 
 function openRuleEditor(loc, existingRule) {
   const inner = document.querySelector('.notification-overlay-inner');
@@ -1267,9 +1301,8 @@ function openRuleEditor(loc, existingRule) {
       name: existingRule.name || '',
       conditions: JSON.parse(JSON.stringify(existingRule.conditions)),
       logic: existingRule.logic || 'AND',
-      timeHorizon: existingRule.timeHorizon || 24,
-      consecutiveHours: existingRule.consecutiveHours || null,
-      cooldownMinutes: existingRule.cooldownMinutes || 360
+      notifyAt: existingRule.notifyAt || '09:00',
+      consecutiveHours: existingRule.consecutiveHours || null
     };
   } else {
     editorState = {
@@ -1277,9 +1310,8 @@ function openRuleEditor(loc, existingRule) {
       name: '',
       conditions: [{ param: 'temperature_2m', op: '>', value: 25 }],
       logic: 'AND',
-      timeHorizon: 24,
-      consecutiveHours: null,
-      cooldownMinutes: 360
+      notifyAt: '09:00',
+      consecutiveHours: null
     };
   }
 
@@ -1300,12 +1332,8 @@ function renderRuleEditor(container, loc, lk) {
         <button class="add-condition-btn" id="add-condition-btn">+ Přidat podmínku</button>
       </div>
       <div class="rule-field">
-        <div class="rule-field-label">Časový horizont</div>
-        <div class="stepper">
-          <button class="stepper-btn" id="horizon-minus">−</button>
-          <span class="stepper-value" id="horizon-value">${editorState.timeHorizon}h</span>
-          <button class="stepper-btn" id="horizon-plus">+</button>
-        </div>
+        <div class="rule-field-label">Čas odeslání</div>
+        <input type="time" id="notify-at-input" value="${editorState.notifyAt}">
       </div>
       <div class="rule-field">
         <div class="inline-toggle">
@@ -1323,12 +1351,6 @@ function renderRuleEditor(container, loc, lk) {
           </div>
         </div>
       </div>
-      <div class="rule-field">
-        <div class="rule-field-label">Cooldown (min. interval mezi upozorněními)</div>
-        <select id="cooldown-select">
-          ${[60,180,360,720,1440].map((m) => `<option value="${m}" ${editorState.cooldownMinutes === m ? 'selected' : ''}>${m < 60 ? m + ' min' : (m / 60) + 'h'}</option>`).join('')}
-        </select>
-      </div>
       <div class="editor-buttons">
         <button class="editor-btn secondary" id="editor-cancel">Zrušit</button>
         <button class="editor-btn primary" id="editor-save">Uložit</button>
@@ -1344,7 +1366,7 @@ function renderRuleEditor(container, loc, lk) {
 
   document.getElementById('editor-save').addEventListener('click', () => {
     editorState.name = document.getElementById('rule-name-input').value.trim() || autoName(editorState);
-    editorState.cooldownMinutes = parseInt(document.getElementById('cooldown-select').value);
+    editorState.notifyAt = document.getElementById('notify-at-input').value || '09:00';
 
     const rule = {
       id: editorState.id || 'r_' + Date.now(),
@@ -1352,9 +1374,8 @@ function renderRuleEditor(container, loc, lk) {
       name: editorState.name,
       conditions: editorState.conditions,
       logic: editorState.logic,
-      timeHorizon: editorState.timeHorizon,
-      consecutiveHours: editorState.consecutiveHours,
-      cooldownMinutes: editorState.cooldownMinutes
+      notifyAt: editorState.notifyAt,
+      consecutiveHours: editorState.consecutiveHours
     };
 
     const rules = getRulesForLocation(loc);
@@ -1372,16 +1393,6 @@ function renderRuleEditor(container, loc, lk) {
   document.getElementById('add-condition-btn').addEventListener('click', () => {
     editorState.conditions.push({ param: 'temperature_2m', op: '>', value: 25 });
     renderConditionRows();
-  });
-
-  // Horizon stepper
-  document.getElementById('horizon-minus').addEventListener('click', () => {
-    editorState.timeHorizon = Math.max(1, editorState.timeHorizon - (editorState.timeHorizon > 24 ? 12 : editorState.timeHorizon > 6 ? 6 : 1));
-    document.getElementById('horizon-value').textContent = editorState.timeHorizon + 'h';
-  });
-  document.getElementById('horizon-plus').addEventListener('click', () => {
-    editorState.timeHorizon = Math.min(168, editorState.timeHorizon + (editorState.timeHorizon >= 24 ? 12 : editorState.timeHorizon >= 6 ? 6 : 1));
-    document.getElementById('horizon-value').textContent = editorState.timeHorizon + 'h';
   });
 
   // Consecutive toggle & stepper

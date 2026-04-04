@@ -78,6 +78,29 @@ app.get('/api/vapid-key', (_req, res) => {
   res.json({ key: VAPID_PUBLIC_KEY });
 });
 
+/* ---- Test Notification ---- */
+
+app.post('/api/test-notification', (req, res) => {
+  const { subscription, delaySeconds } = req.body || {};
+  if (!subscription) return res.status(400).json({ error: 'No subscription' });
+  const delay = Math.min(Math.max(parseInt(delaySeconds) || 30, 5), 300);
+  setTimeout(async () => {
+    try {
+      const payload = JSON.stringify({
+        title: 'Testovací notifikace',
+        body: `Push notifikace fungují správně! (zpoždění ${delay}s)`,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png'
+      });
+      await webpush.sendNotification(subscription, payload);
+      console.log('Test notification sent');
+    } catch (err) {
+      console.error('Test notification failed:', err.message);
+    }
+  }, delay * 1000);
+  res.json({ success: true, delaySeconds: delay });
+});
+
 /* ---- Weather Fetch (server-side, for rule evaluation) ---- */
 
 const weatherServerCache = new Map();
@@ -144,24 +167,34 @@ function evaluateCondition(condition, hourData) {
   }
 }
 
+function getTodayDateString() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Prague' });
+}
+
 function evaluateRule(rule, hourlyData) {
   if (!rule.enabled || !rule.conditions || rule.conditions.length === 0) {
     return { triggered: false };
   }
 
-  const horizon = Math.min(rule.timeHorizon || 24, hourlyData.length);
-  const windowData = hourlyData.slice(0, horizon);
+  // Filter to today's hours (Europe/Prague timezone, matching Open-Meteo output)
+  const today = getTodayDateString(); // "YYYY-MM-DD"
+  const nowPrague = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Prague' }).slice(0, 16); // "YYYY-MM-DD HH:MM"
+  const nowCompare = nowPrague.replace(' ', 'T');
+  const todayData = hourlyData.filter((h) => {
+    return h.time && h.time.startsWith(today) && h.time >= nowCompare;
+  });
+
+  if (todayData.length === 0) return { triggered: false };
 
   // For each hour, check if all/any conditions match
   const logic = rule.logic || 'AND';
-  const hourMatches = windowData.map((hourData) => {
+  const hourMatches = todayData.map((hourData) => {
     const results = rule.conditions.map((c) => evaluateCondition(c, hourData));
     return logic === 'AND' ? results.every(Boolean) : results.some(Boolean);
   });
 
   const consecutive = rule.consecutiveHours;
   if (consecutive && consecutive > 1) {
-    // Find N consecutive matching hours
     let count = 0;
     for (const match of hourMatches) {
       if (match) {
@@ -174,23 +207,19 @@ function evaluateRule(rule, hourlyData) {
     return { triggered: false };
   }
 
-  // Any single hour match triggers
   return { triggered: hourMatches.some(Boolean) };
 }
 
-/* ---- Cooldown Tracking ---- */
+/* ---- Sent-Today Tracking ---- */
 
-const cooldowns = new Map(); // ruleId -> timestamp
+const sentToday = new Map(); // ruleId -> "YYYY-MM-DD"
 
-function isCoolingDown(ruleId, cooldownMinutes) {
-  if (!cooldownMinutes) return false;
-  const last = cooldowns.get(ruleId);
-  if (!last) return false;
-  return Date.now() - last < cooldownMinutes * 60 * 1000;
+function alreadySentToday(ruleId) {
+  return sentToday.get(ruleId) === getTodayDateString();
 }
 
-function markTriggered(ruleId) {
-  cooldowns.set(ruleId, Date.now());
+function markSentToday(ruleId) {
+  sentToday.set(ruleId, getTodayDateString());
 }
 
 /* ---- Rule Summary for Notification Body ---- */
@@ -224,25 +253,35 @@ function buildNotificationBody(rule) {
   });
   let text = parts.join(rule.logic === 'OR' ? ' nebo ' : ' a ');
   if (rule.consecutiveHours) text += ` po dobu ${rule.consecutiveHours}h`;
-  text += ` (příštích ${rule.timeHorizon || 24}h)`;
+  text += ' (dnes)';
   return text;
 }
 
 /* ---- Scheduling Loop ---- */
 
+function getCurrentPragueTime() {
+  return new Date().toLocaleTimeString('cs-CZ', {
+    timeZone: 'Europe/Prague', hour: '2-digit', minute: '2-digit', hour12: false
+  });
+}
+
 async function checkAllSubscriptions() {
-  for (const sub of subscriptions) {
+  const currentTime = getCurrentPragueTime(); // "HH:MM"
+
+  for (const sub of [...subscriptions]) {
     for (const loc of (sub.locations || [])) {
       for (const rule of (loc.rules || [])) {
         if (!rule.enabled) continue;
-        if (isCoolingDown(rule.id, rule.cooldownMinutes)) continue;
+        const notifyAt = rule.notifyAt || '09:00';
+        if (notifyAt !== currentTime) continue;
+        if (alreadySentToday(rule.id)) continue;
 
         try {
           const hourly = await fetchWeatherForRules(loc);
           const result = evaluateRule(rule, hourly);
 
           if (result.triggered) {
-            markTriggered(rule.id);
+            markSentToday(rule.id);
             const payload = JSON.stringify({
               title: `${loc.name}: ${rule.name || 'Upozornění'}`,
               body: buildNotificationBody(rule),
@@ -251,15 +290,14 @@ async function checkAllSubscriptions() {
             });
             try {
               await webpush.sendNotification(sub.subscription, payload);
-              console.log(`Notification sent: ${loc.name} - ${rule.name}`);
+              console.log(`Notification sent: ${loc.name} - ${rule.name} (${notifyAt})`);
             } catch (pushErr) {
               console.error('Push failed:', pushErr.message);
-              // Remove invalid subscriptions (410 Gone)
               if (pushErr.statusCode === 410) {
                 const idx = subscriptions.indexOf(sub);
                 if (idx !== -1) subscriptions.splice(idx, 1);
                 saveSubscriptionsToDisk();
-                return; // Skip rest of this subscription
+                break;
               }
             }
           }
@@ -271,15 +309,10 @@ async function checkAllSubscriptions() {
   }
 }
 
-// Check every 5 minutes
+// Check every minute
 setInterval(() => {
   checkAllSubscriptions().catch((e) => console.error('Check error:', e));
-}, 5 * 60 * 1000);
-
-// Also check shortly after startup
-setTimeout(() => {
-  checkAllSubscriptions().catch((e) => console.error('Initial check error:', e));
-}, 30 * 1000);
+}, 60 * 1000);
 
 app.use(express.static(__dirname));
 

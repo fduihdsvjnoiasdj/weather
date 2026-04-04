@@ -1,7 +1,7 @@
 // Service Worker pro PWA aplikaci předpovědi počasí
 // Cachuje statické soubory pro offline použití a zprostředkovává zobrazení notifikací.
 
-const CACHE_NAME = 'weather-pwa-v2';
+const CACHE_NAME = 'weather-pwa-v3';
 
 // Seznam souborů, které se předem uloží do cache během instalace service workeru.
 const PRECACHE_URLS = [
