@@ -118,7 +118,25 @@ body {
 }
 
 .gps-badge {
-  font-size: 0.85em;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: 0.08em;
+  margin-right: 0.15em;
+  opacity: 0.95;
+}
+
+.gps-icon {
+  width: 0.7em;
+  height: 0.7em;
+  fill: currentColor;
+}
+
+.city-list-name .gps-icon {
+  width: 0.85em;
+  height: 0.85em;
+  vertical-align: -0.08em;
+  margin-right: 0.2em;
+  opacity: 0.9;
 }
 
 .city-temp {
@@ -512,7 +530,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px calc(env(safe-area-inset-bottom, 8px) + 6px);
+  padding: 8px 16px max(env(safe-area-inset-bottom, 0px), 4px);
   background: var(--bar-bg);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);

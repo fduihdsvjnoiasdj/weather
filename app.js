@@ -198,7 +198,7 @@ function renderCityList() {
     card.classList.add(bgClass);
     card.innerHTML = `
       <div class="city-list-left">
-        <div class="city-list-name">${loc.isGPS ? '📍 ' : ''}${loc.name}</div>
+        <div class="city-list-name">${loc.isGPS ? GPS_ICON + ' ' : ''}${loc.name}</div>
         <div class="city-list-time">${timeStr}</div>
         <div class="city-list-condition">${current ? describeWeather(current.weatherCode) : ''}</div>
       </div>
@@ -444,7 +444,7 @@ function createCityPage(loc, weather) {
   const header = document.createElement('div');
   header.className = 'city-header';
   header.innerHTML = `
-    <div class="city-name">${loc.isGPS ? '<span class="gps-badge">📍 </span>' : ''}${loc.name}</div>
+    <div class="city-name">${loc.isGPS ? '<span class="gps-badge">' + GPS_ICON + '</span>' : ''}${loc.name}</div>
     <div class="city-temp">${current ? `${Math.round(current.temp)}°` : '—'}</div>
     <div class="city-condition">${current ? describeWeather(current.weatherCode) : 'Data nejsou dostupná'}</div>
     <div class="city-highlow">${today ? `H:${Math.round(today.tempMax)}°  L:${Math.round(today.tempMin)}°` : ''}</div>
@@ -794,8 +794,10 @@ const SVG_ICONS = {
   snow: `<svg class="w-icon" viewBox="0 0 36 36"><path d="M10 18 C4 18 2 15 5 12 C3 8 8 5 13 6 C14 2 22 2 24 6 C28 6 30 9 28 12 C31 15 28 18 24 18Z" fill="rgba(255,255,255,0.85)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/><g fill="#B8D4E8"><circle cx="12" cy="23" r="1.5"/><circle cx="18" cy="25" r="1.5"/><circle cx="24" cy="23" r="1.5"/><circle cx="15" cy="29" r="1.5"/><circle cx="21" cy="29" r="1.5"/></g></svg>`,
   thunder: `<svg class="w-icon" viewBox="0 0 36 36"><path d="M10 16 C4 16 2 13 5 10 C3 6 8 3 13 4 C14 0 22 0 24 4 C28 4 30 7 28 10 C31 13 28 16 24 16Z" fill="rgba(200,200,200,0.85)" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/><polygon points="19,16 14,25 18,25 15,34 23,22 19,22 22,16" fill="#FFD60A"/></svg>`,
   moon: `<svg class="w-icon" viewBox="0 0 36 36"><path d="M22 6 C14 8 10 16 14 24 C18 30 26 30 30 26 C24 30 14 28 12 18 C10 10 16 4 22 6Z" fill="#F0E68C" stroke="#F0E68C" stroke-width="0.5"/></svg>`,
-  moonCloud: `<svg class="w-icon" viewBox="0 0 36 36"><path d="M22 2 C16 3 13 9 16 15 C14 14 12 14 10 15" fill="none"/><path d="M24 4 C18 5 16 10 18 14 C14 12 10 14 10 14" fill="none"/><path d="M25 3 C19 5 17 10 20 14" fill="none" stroke="#F0E68C" stroke-width="0"/><path d="M22 2C18 4 16 8 18 12" fill="none"/><circle cx="23" cy="8" r="0" fill="#F0E68C"/><path d="M26 3 Q20 4 19 10 Q18 6 22 3 Q26 1 28 5 Q24 2 26 3Z" fill="#F0E68C"/><path d="M10 30 C4 30 2 26 5 23 C3 18 8 15 13 16 C14 12 22 12 24 16 C28 16 30 19 28 23 C31 26 28 30 24 30Z" fill="rgba(200,210,230,0.85)" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/></svg>`
+  moonCloud: `<svg class="w-icon" viewBox="0 0 36 36"><path d="M26 3 C21 4 18 9 20 14 C22 17 26 18 29 16 C26 20 20 19 18 14 C16 9 20 3 26 3Z" fill="#F0E68C" stroke="#F0E68C" stroke-width="0.5"/><path d="M10 30 C4 30 2 26 5 23 C3 18 8 15 13 16 C14 12 22 12 24 16 C28 16 30 19 28 23 C31 26 28 30 24 30Z" fill="rgba(220,225,235,0.9)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/></svg>`
 };
+
+const GPS_ICON = `<svg class="gps-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M14.4 1.6a.9.9 0 0 1 .2 1L9.5 14.2c-.3.6-1.1.6-1.3 0L6.5 9.5 1.8 7.8c-.6-.2-.6-1 0-1.3L13.4 1.4a.9.9 0 0 1 1 .2z"/></svg>`;
 
 function getWeatherIcon(code, timeStr) {
   const isNight = isNightTime(timeStr);
