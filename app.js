@@ -466,11 +466,23 @@ function createCityPage(loc, weather) {
   `;
 
   const strip = hourlyPanel.querySelector('.hourly-strip');
+  const hasPrecip = weather.hourly.some(h => (h.precipitation || 0) > 0);
+  const maxPrecip = hasPrecip ? Math.max(...weather.hourly.map(h => h.precipitation || 0), 2) : 0;
+  const PRECIP_BAR_MAX = 28;
   weather.hourly.forEach((hour, i) => {
     const slot = document.createElement('div');
     slot.className = 'hour-item';
     const timeLabel = i === 0 ? 'Teď' : formatHour(hour.time);
-    const precipHtml = hour.precipProb > 0 ? `<span class="hour-precip">${hour.precipProb}%</span>` : '<span class="hour-precip-spacer"></span>';
+    let precipHtml = '';
+    if (hasPrecip) {
+      const precip = hour.precipitation || 0;
+      const barH = precip > 0 ? Math.max(4, Math.min(PRECIP_BAR_MAX, Math.round((precip / maxPrecip) * PRECIP_BAR_MAX))) : 0;
+      const label = precip >= 0.05 ? (precip < 10 ? precip.toFixed(1) : String(Math.round(precip))) : '';
+      precipHtml = `<div class="hour-precip-wrap">
+        ${label ? `<span class="hour-precip">${label}</span>` : ''}
+        <div class="hour-precip-bar" style="height:${barH}px"></div>
+      </div>`;
+    }
     slot.innerHTML = `
       <span class="hour-time">${timeLabel}</span>
       <span class="hour-icon">${getWeatherIcon(hour.weatherCode, hour.time)}</span>

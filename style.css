@@ -269,15 +269,26 @@ body {
   font-weight: 600;
 }
 
-.hour-precip {
-  font-size: 0.68rem;
-  color: #64D2FF;
-  font-weight: 600;
-  min-height: 12px;
+.hour-precip-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 16px;
 }
 
-.hour-precip-spacer {
-  min-height: 12px;
+.hour-precip {
+  font-size: 0.65rem;
+  color: #64D2FF;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.hour-precip-bar {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(100, 210, 255, 0.7) 0%, rgba(100, 210, 255, 0.15) 100%);
+  border-radius: 3px 3px 0 0;
 }
 
 /* ---- Daily Forecast ---- */
